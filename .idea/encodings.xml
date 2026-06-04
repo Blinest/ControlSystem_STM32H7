@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="Encoding">
+    <file url="file://$PROJECT_DIR$/BSP/Camera/dcmi_ov2640.c" charset="GBK" />
+    <file url="file://$PROJECT_DIR$/BSP/Camera/dcmi_ov2640.h" charset="GBK" />
+    <file url="file://$PROJECT_DIR$/BSP/Camera/dcmi_ov2640_cfg.h" charset="GBK" />
+    <file url="file://$PROJECT_DIR$/BSP/Camera/dcmi_ov5640.c" charset="GBK" />
+    <file url="file://$PROJECT_DIR$/BSP/Camera/dcmi_ov5640.h" charset="GBK" />
+    <file url="file://$PROJECT_DIR$/BSP/Camera/dcmi_ov5640_cfg.h" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/BSP/Camera/lcd_fonts.c" charset="GBK" />
+    <file url="file://$PROJECT_DIR$/BSP/Camera/lcd_fonts.h" charset="GBK" />
+    <file url="file://$PROJECT_DIR$/BSP/Camera/lcd_image.c" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/BSP/Camera/lcd_image.h" charset="GBK" />
+    <file url="file://$PROJECT_DIR$/BSP/Camera/lcd_spi_154.h" charset="GBK" />
+    <file url="file://$PROJECT_DIR$/BSP/Camera/led.c" charset="GBK" />
+    <file url="file://$PROJECT_DIR$/BSP/Camera/led.h" charset="GBK" />
+    <file url="file://$PROJECT_DIR$/BSP/Camera/sccb.c" charset="GBK" />
+    <file url="file://$PROJECT_DIR$/BSP/Camera/sccb.h" charset="GBK" />
+    <file url="file://$PROJECT_DIR$/BSP/Motor/Emm_V5.c" charset="GB2312" />
+    <file url="file://$PROJECT_DIR$/BSP/Motor/Emm_V5.h" charset="GB2312" />
+    <file url="file://$PROJECT_DIR$/BSP/Motor/X_V2.c" charset="GB2312" />
+    <file url="file://$PROJECT_DIR$/BSP/Motor/X_V2.h" charset="GB2312" />
+  </component>
+</project>

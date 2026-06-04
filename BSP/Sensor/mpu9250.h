@@ -1,0 +1,8 @@
+//
+// Created by q3634 on 2026/3/13.
+//
+
+#ifndef CONTROLSYSTEM_MPU9250_H
+#define CONTROLSYSTEM_MPU9250_H
+
+#endif //CONTROLSYSTEM_MPU9250_H
