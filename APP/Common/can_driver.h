@@ -42,6 +42,9 @@ void CAN_SendCmd(FDCAN_HandleTypeDef *hcan, uint8_t *cmd, uint8_t len);
 // 接收函数
 uint8_t CAN_Driver_Receive(CAN_Message_t* msg);
 
+// Bus Off 恢复函数（在任务主循环中调用）
+void CAN_BusOff_Recovery(void);
+
 
 
 

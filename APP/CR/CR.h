@@ -23,16 +23,17 @@ typedef struct { double m[4][4]; } se3_t;
 
 typedef struct CR_Parameter
 {
-	double r;
+	float r[3];
 } CR_Parameter;
 
 typedef struct JointSpace
 {
-	float target_phi[2];
-	float target_theta[2];
-	float current_phi[2];
-	float current_theta[2];
-	float deltaL[6];
+	float target_phi;
+	float target_theta[3];
+	float total_target_theta;
+	float current_phi;
+	float current_theta[3];
+	float deltaL[9];
 } JointSpace;
 
 typedef struct OperationSpace
@@ -78,7 +79,9 @@ void CR_init(void);
 uint8_t armBend(int seg, char direction, double val);
 uint8_t armBend_edit(int seg, char direction, double val, double g_u, double g_r, double g_d, double g_l, double seg1_limit, double seg2_limit);
 void deltaL_update(void);
-void autostraight(void);
+void auto_straight(void);
+void armRotate(float theta_deg, float step_deg);
+void action_group_demo(void);
 int direction_to_index(char direction);
 void scale_squared(uint8_t direction, float val);
 double tendonCompensation(int seg, char direction, double angle_deg);

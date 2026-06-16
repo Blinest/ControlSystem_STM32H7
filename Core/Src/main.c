@@ -19,23 +19,18 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
-#include "dcmi.h"
-#include "dma.h"
 #include "fdcan.h"
-#include "i2c.h"
-#include "spi.h"
 #include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "Camera/lcd_spi_154.h"
-#include "Camera/dcmi_ov2640.h"
+
 #include "usart.h"
-#include "Camera/dcmi_ov5640.h"
+// #include "Camera/dcmi_ov5640.h"
 #include "Common/can_driver.h"
 #include "CR/CR.h"
-#include "Camera/led.h"
+// #include "Camera/led.h"
 #define Camera_Buffer	0x24000000    // 摄像头图像缓冲区
 /* USER CODE END Includes */
 
@@ -105,27 +100,17 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_DMA_Init();
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   MX_USART3_UART_Init();
   MX_FDCAN1_Init();
-  MX_DCMI_Init();
-  MX_SPI6_Init();
-  MX_I2C4_Init();
   /* USER CODE BEGIN 2 */
   CAN_Driver_Init();
 
   CR_init();
   MPU_Config();
-  LED_Init();
-  Usart_SendString(&huart1, "SPI INIT\r\n", 12);
-  SPI_LCD_Init();
-  Usart_SendString(&huart1, "AFTER SPI\r\n", 11);
-  DCMI_OV5640_Init(); // DCMI以及OV5640初始化
-  OV5640_AF_Download_Firmware(); // 写入自动对焦固件
-  OV5640_AF_Trigger_Constant(); // 自动对焦 ，持续 触发，当OV5640检测到当前画面不在焦点时，会一直触发对焦
-  OV5640_DMA_Transmit_Continuous(Camera_Buffer, Display_BufferSize); // 启动DMA连续传输
+
+
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -163,24 +148,23 @@ void SystemClock_Config(void)
 
   /** Configure the main internal regulator output voltage
   */
-  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE0);
 
   while(!__HAL_PWR_GET_FLAG(PWR_FLAG_VOSRDY)) {}
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_DIV1;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = 4;
-  RCC_OscInitStruct.PLL.PLLN = 50;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLM = 5;
+  RCC_OscInitStruct.PLL.PLLN = 192;
   RCC_OscInitStruct.PLL.PLLP = 2;
-  RCC_OscInitStruct.PLL.PLLQ = 8;
+  RCC_OscInitStruct.PLL.PLLQ = 12;
   RCC_OscInitStruct.PLL.PLLR = 2;
-  RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_3;
+  RCC_OscInitStruct.PLL.PLLRGE = RCC_PLL1VCIRANGE_2;
   RCC_OscInitStruct.PLL.PLLVCOSEL = RCC_PLL1VCOWIDE;
   RCC_OscInitStruct.PLL.PLLFRACN = 0;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
@@ -201,7 +185,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_APB2_DIV2;
   RCC_ClkInitStruct.APB4CLKDivider = RCC_APB4_DIV2;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
   {
     Error_Handler();
   }
@@ -242,7 +226,7 @@ void MPU_Config(void)
 
 /**
   * @brief  Period elapsed callback in non blocking mode
-  * @note   This function is called  when TIM6 interrupt took place, inside
+  * @note   This function is called  when TIM2 interrupt took place, inside
   * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
   * a global variable "uwTick" used as application time base.
   * @param  htim : TIM handle
@@ -253,7 +237,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   /* USER CODE BEGIN Callback 0 */
 
   /* USER CODE END Callback 0 */
-  if (htim->Instance == TIM6)
+  if (htim->Instance == TIM2)
   {
     HAL_IncTick();
   }

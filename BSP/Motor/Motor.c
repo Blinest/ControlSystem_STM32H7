@@ -1,332 +1,353 @@
+//
+// Created by blin on 2026/3/7.
+//
 /**
- * @file motor.c
- * @brief 电机指令处理模块（基于 MotorContext 架构，支持多电机驱动切换）
+* @file motor.c
+ * @brief 电机指令处理模块
  *
- * ...（原注释保留）
+ * 本模块提供电机指令处理功能：
+ * - motor_init()：电机初始化，初始化流程包括电机参数设置、
+ * - motor_run()：启动电机，并设置绝对目标位置
+ * - motor_position_control_snf()：
+ * - motor_emergency_stop_all()：紧急停止所有电机
  *
- * 通过定义不同的 MOTOR_DRIVER 宏来选择底层驱动：
- *   MOTOR_DRIVER_EMM_V5   -> 使用 Emm_V5 驱动
- *   MOTOR_DRIVER_SCSCL    -> 使用飞特 SCSCL 舵机驱动
  */
-
-// ==================== 电机驱动选择（在此处定义）====================
-// #define MOTOR_DRIVER_EMM_V5      // 当前使用 Emm_V5 驱动
-#define MOTOR_DRIVER_SCSCL           // 切换到 SCSCL 舵机
-
 #include "Motor.h"
+
 #include "math.h"
 #include <stdio.h>
-
-#include "SCS.h"
 #include "usart.h"
-
-#if defined(MOTOR_DRIVER_EMM_V5)
-    #include "Emm_V5.h"
-#elif defined(MOTOR_DRIVER_SCSCL)
-    #include "SCSCL.h"
-#endif
-
-#include "Common/XV2_cmd_parser.h"
-#include "CR/CR.h"
+#include "cmsis_os2.h"
+#include "fdcan.h"
+// #include "Emm_V5.h"
+#include "X_V2.h"
 #include "CR/kinematic.h"
-#include "string.h"
 
 // 创建电机与电机反馈数据结构体
-MotorContext motor_ctx[MOTOR_NUM];
+MotorFeedback motor_feedback[MOTOR_NUM];
+GlobalMotor global_motor[MOTOR_NUM];
 
-/* ---------- SCSCL 舵机相关参数宏（根据实际舵机规格调整） ---------- */
-#define SCSCL_ANGLE_RANGE       300.0f   // 舵机总行程（度），例如 0~300°
-#define SCSCL_POS_MAX           1023     // 位置值最大值
-#define SCSCL_POS_MID           512      // 中位位置值（对应角度 0°）
-#define SCSCL_MAX_RPM           60.0f    // 舵机额定最大转速（RPM），用于速度转换
-
-// 角度单位变成 0.01 度，比如 90.00 度写成 9000
-// 支持多圈：输入任意角度（百分度），输出单圈编码值 0~4095，其中 0°→0，180°→2048，360°→4096（实际0）
-static inline uint16_t angle_to_scscl_pos_int(int32_t angle_cdeg)
-{
-	// 取模 36000（即 360°），得到单圈内的百分度
-	int32_t mod = angle_cdeg % 36000;
-	if (mod < 0) mod += 36000;   // 处理负角度
-
-	// 线性映射：0~36000 → 0~4096，四舍五入
-	// 使用 (mod * 4096 + 18000) / 36000 实现四舍五入
-	int32_t pos = (mod * 4096 + 18000) / 36000;
-
-	// 当 mod=36000 时，pos=4096，但编码值应回绕到 0
-	if (pos >= 4096) pos = 0;
-
-	return (uint16_t)pos;
-}
-
-// rpm_crpm 单位是 0.01 转/分钟，比如 50.00 rpm 写成 5000
-static inline uint16_t rpm_to_scscl_speed_int(int32_t rpm_crpm)
-{
-	int32_t abs_rpm = (rpm_crpm > 0) ? rpm_crpm : -rpm_crpm;
-	if (abs_rpm > (int32_t)(SCSCL_MAX_RPM * 100)) abs_rpm = (int32_t)(SCSCL_MAX_RPM * 100);
-	return (uint16_t)(abs_rpm * 1023 / (SCSCL_MAX_RPM * 100));
-}
-
-/* ==================== 初始化 ==================== */
+//电机初始化函数
 void motor_init()
 {
-    for (int i = 0; i < MOTOR_NUM; i++) {
-        GlobalMotor *gm = &motor_ctx[i].global_motor;
-        gm->id = MOTOR_ID + i;
-        gm->motor.stepper_motor.daocheng = 2;
-        gm->motor.stepper_motor.xifen = 128;
-        gm->motor.stepper_motor.step_angle = 1.8f;
-        gm->motor.stepper_motor.target_vel = 10.0f;
-        gm->motor.stepper_motor.current_vel = 10.0f;
-        gm->vel_max = 120.0f;
-        gm->current_acc = 0.0f;
-
-        // 初始化每个电机的串口解析器
-        X_V2_SerialParser_Init(&motor_ctx[i].parser);
-
-        #if defined(MOTOR_DRIVER_SCSCL)
-            // 可选：上电时使能所有舵机扭矩（根据需求启用）
-            // EnableTorque(gm->id, 1);
-        #endif
-    }
-}
-
-/* ==================== 使能控制 ==================== */
-void motor_enable(uint8_t addr, bool enable)
-{
-#if defined(MOTOR_DRIVER_EMM_V5)
-    Emm_V5_En_Control(addr, enable, 0);
-#elif defined(MOTOR_DRIVER_SCSCL)
-    // 使用 EnableTorque 控制舵机扭矩（enable=1 使能，0 失能）
-    // EnableTorque(addr, enable ? 1 : 0);
-	if (1) // 后续修改为ping的方式
+	// 初始化电机相关参数
+	for (int i = 0; i < MOTOR_NUM; i++)
 	{
-		for (uint8_t i = 0; i < MOTOR_NUM; i++)
-		{
-			if (motor_ctx[i].global_motor.id == addr) motor_ctx[i].global_motor.state = 1;
-		}
+		global_motor[i].id = MOTOR_ID + i;
+		global_motor[i].stepper_motor.daocheng = 12; // 根据丝杠导程设置，9mm
+		global_motor[i].stepper_motor.xifen = 256; // 平滑控制
+		global_motor[i].stepper_motor.step_angle = 1.8; // 步距角
+		global_motor[i].stepper_motor.target_vel = 10; // 如果要完成指标，至少是 10mm/s
+		global_motor[i].stepper_motor.current_vel = 10;
+		global_motor[i].vel_max = 120; // 满足指标要求
+		global_motor[i].current_acc = 0; // 由于位移量较小，为提高响应速度，直接启动，不做加减速处理 (0-255)
 	}
-#endif
 }
 
-/* ==================== 自动校准（占位） ==================== */
-void motor_auto_calibrate(uint8_t idx)
+/**
+ *
+ * @param addr : 电机地址
+ * @param enable : 电机是否使能
+ */
+
+void motor_enable(uint8_t addr,bool enable)
 {
-#if defined(MOTOR_DRIVER_EMM_V5)
-    Emm_V5_Calibrate(motor_ctx[idx].global_motor.id);
-#elif defined(MOTOR_DRIVER_SCSCL)
-    // 舵机一般无自动校准，可留空
-#endif
-    HAL_Delay(40000);
+	// 更新电机状态，(电机使能状态 0x02)
+	X_V2_En_Control(addr, enable, 0);
 }
 
-/* ==================== 单电机绝对位置控制 ==================== */
-void motor_run(int idx, float vel_rpm, float target, uint8_t snf)
-{
-    if (idx < 0 || idx >= MOTOR_NUM) return;
-    GlobalMotor *gm = &motor_ctx[idx].global_motor;
-    gm->target_vel = vel_rpm;
-    gm->target_pos = target;
-#if defined(MOTOR_DRIVER_EMM_V5)
-	StepperMotor *sm = &gm->motor.stepper_motor;
-	sm->target_vel = vel_rpm;
-	sm->target_pos = target;
-    float step_angle = sm->step_angle;
-    float xifen = sm->xifen;
-    uint8_t dir = (target >= 0) ? 0 : 1;
-    float angle_abs = fabsf(target);
-    uint32_t clk = (uint32_t)(angle_abs / step_angle * xifen);
-    uint16_t acc = 10;
-    Emm_V5_Pos_Control(gm->id, dir, (uint16_t)vel_rpm, acc, clk, 1, snf);
+/**
+  * @brief 启动步进电机，并达到指定位置（带限制条件）
+  * @param idx: 电机索引
+  * @param vel 速度值, mm/s
+  * @param target: 目标位置(绝对位置), mm
+  * @param snf: 同步标志位，true同步
+  */
+void motor_run(int idx, float vel, float target, uint8_t snf) {
 
-#elif defined(MOTOR_DRIVER_SCSCL)
-    // 将目标角度转换为舵机位置值，速度转换为舵机速度字
-	uint16_t pos = angle_to_scscl_pos_int((uint32_t)(target * 100));
-	uint16_t speed = rpm_to_scscl_speed_int((uint32_t)(vel_rpm * 100));
-    WritePos(gm->id, pos, 0, speed);
-#endif
+	// ==================== 执行控制 ====================
+	const uint16_t xifen = global_motor[idx].stepper_motor.xifen;
+	const float daocheng = global_motor[idx].stepper_motor.daocheng;
+	const double step_angle = global_motor[idx].stepper_motor.step_angle;
+	// 方向确定
+	const int dir = target > 0 ? 0 : 1;
+
+	// 速度计算
+	const float vel_rpm = vel * 60.0f / daocheng ;
+	const uint16_t vel_rpm_abs = (uint16_t)(fabsf(vel_rpm) + 0.5f);
+
+	// 位置计算
+	const float angle = 360.0f  * target / daocheng;
+	float angle_abs = fabsf(angle);
+
+	// 脉冲数计算
+	const uint32_t clk = (uint32_t)(angle_abs / step_angle * xifen);
+
+	// 更新电机状态
+	global_motor[idx].target_vel = vel_rpm;
+	global_motor[idx].stepper_motor.target_vel = vel;
+	global_motor[idx].target_pos = angle;
+	global_motor[idx].stepper_motor.target_pos = target;
+	// 测试用
+	// float val = target;
+	// int int_part = (int)val;
+	// int frac_part = (int)((val - int_part) * 100 + 0.5);  // 保留两位小数，四舍五入
+	// if (frac_part < 0) frac_part = -frac_part;  // 小数部分取绝对值
+	// if (frac_part >= 100) {  // 处理进位，如 1.999 -> 2.00
+	// 	int_part += 1;
+	// 	frac_part -= 100;
+	// }
+
+	// char test[32];
+	// int len = snprintf(test, sizeof(test), "%d.%02d", int_part, frac_part);
+	// if (len > 0 && len < sizeof(test)) {
+	// 	Usart_SendString(&huart1, (uint8_t*)test, len);
+	// } else {
+	// 	Usart_SendString(&huart1, (uint8_t*)"ERR_FMT\r\n", 9);
+	// }
+	// 直通限速位置模式
+	// X_V2_Bypass_Pos_LV_Control(global_motor[idx].id, dir, vel_rpm_abs, angle_abs, 1, snf);
+	// X_V2_Pos_Control(global_motor[idx].id, dir, vel_rpm_abs, 0, clk, 1, snf);
+	// 加速度和减速度 (RPM/s)，根据实际系统调整
+	uint16_t acc = 500;   // 加速斜率
+	uint16_t dec = 500;   // 减速斜率
+
+	// 使用梯形曲线加减速位置模式
+	X_V2_Traj_Pos_Control(global_motor[idx].id, dir, acc, dec, vel_rpm_abs, angle_abs, 1, snf);
+
 }
 
-/* ==================== 速度模式控制 ==================== */
+/**
+ * @brief 速度模式驱动电机（用于外部位置环）
+ * @param idx       电机索引
+ * @param vel_rpm   目标速度 (RPM)，可为正或负，内部自动处理方向
+ * @param acc_rpm_s 加速度 (RPM/s)
+ */
 void motor_run_velocity_mode(uint8_t idx, float vel_rpm, uint16_t acc_rpm_s) {
-    if (idx < 0 || idx >= MOTOR_NUM) return;
-
-    GlobalMotor *gm = &motor_ctx[idx].global_motor;
-
-#if defined(MOTOR_DRIVER_EMM_V5)
-    uint8_t dir = (vel_rpm >= 0) ? 0 : 1;
-    float abs_vel = fabsf(vel_rpm);
-    Emm_V5_Vel_Control(gm->id, dir, abs_vel, 10, false);
-    gm->target_vel = vel_rpm;
-
-#elif defined(MOTOR_DRIVER_SCSCL)
-    /**
-     * 注意：飞特 SCSCL 舵机通常没有直接的速度环模式。
-     * 若需实现连续转动，可考虑：
-     *  1. 使用 PWMMode() + WritePWM() 切换到 PWM 模式控制（需事先切换）
-     *  2. 不断更新目标位置（很消耗资源）
-     * 此处暂以空实现保留接口，避免编译错误。
-     * 实际使用时可根据需求重新设计。
-     */
-    (void)acc_rpm_s;   // 未使用参数
-    gm->target_vel = vel_rpm;   // 记录速度，但不执行动作
-#endif
+	uint8_t dir = (vel_rpm >= 0) ? 0 : 1;
+	float abs_vel = fabsf(vel_rpm);
+	// 使用限电流版本可选
+	X_V2_Vel_Control(global_motor[idx].id, dir, acc_rpm_s, abs_vel, false);
+	// 记录当前目标速度
+	global_motor[idx].target_vel = vel_rpm;
 }
 
-/* ==================== 紧急停止所有电机 ==================== */
+/**
+ * 多电机停止函数
+ *
+ */
 void motor_stop_all()
 {
-    for (int i = 0; i < MOTOR_NUM; i++) {
-        GlobalMotor *gm = &motor_ctx[i].global_motor;
-#if defined(MOTOR_DRIVER_EMM_V5)
-        Emm_V5_Stop_Now(gm->id, false);
-
-#elif defined(MOTOR_DRIVER_SCSCL)
-        // 快速停止：读取当前位置，并立即以最大速度设为当前目标位置
-        int cur_pos = ReadPos(gm->id);
-        if (cur_pos >= 0) {
-            WritePos(gm->id, (uint16_t)cur_pos, 0, 1023);  // 最大速度维持当前位置
-        } else {
-            // 读取失败时，失能扭矩使电机无力（作为后备）
-            EnableTorque(gm->id, 0);
-        }
-#endif
-        gm->state = 0;
-    }
+	for(int i = 0; i < MOTOR_NUM; i++) {
+		X_V2_Stop_Now(global_motor[i].id, false);
+		global_motor[i].state = 0;
+	}
 }
 
-/* ==================== 单电机相对位移控制 ==================== */
-void motor_single_control(uint8_t idx, uint8_t direction, float angle_abs, float angle_vel)
+/**
+ * @brief 单电机控制函数（绝对位置控制）
+ * @param idx : 电机索引号
+ * @param direction ：电机旋转方向
+ * @param distance ：步进电机移动距离 mm
+ * @param vel ：步进电机位移速度 mm/s
+ */
+void motor_single_control(uint8_t idx, uint8_t direction, float distance, float vel)
 {
-    if (idx >= MOTOR_NUM) return;
-    float angle = (direction == 0) ? angle_abs : -angle_abs;
-    motor_run(idx, angle_vel, angle, 0);
+	// 位置换算，0正1负
+	float displacement = (direction == 0) ? distance : -distance;
+
+	// 1. 检查所有限制条件 (使用默认速度)：解除限制 4.9
+	//float default_speed = global_motor[idx].vel_max * 0.5f; // 使用50%最大速度
+	//if (vel > default_speed) vel = default_speed;
+	// float val = vel;
+	// int int_part = (int)val;
+	// int frac_part = (int)((val - int_part) * 100 + 0.5);  // 保留两位小数，四舍五入
+	// if (frac_part < 0) frac_part = -frac_part;  // 小数部分取绝对值
+	// if (frac_part >= 100) {  // 处理进位，如 1.999 -> 2.00
+	// 	int_part += 1;
+	// 	frac_part -= 100;
+	// }
+	//
+	// char test[32];
+	// int len = snprintf(test, sizeof(test), "%d.%02d", int_part, frac_part);
+	// if (len > 0 && len < sizeof(test)) {
+	// 	Usart_SendString(&huart1, (uint8_t*)test, len);
+	// } else {
+	// 	Usart_SendString(&huart1, (uint8_t*)"ERR_FMT\r\n", 9);
+	// }
+
+	// 调用底层控制函数
+	motor_run(idx, vel, displacement, 0);
 }
 
-/* ==================== 多电机同步控制 ==================== */
+// 多电机同步控制函数
+/**
+ *
+ * @param count :电机数量
+ * @param start_idx ：电机初始索引值
+ * @param distance ：电机移动距离数组
+ */
 void motor_sync_control(uint8_t count, uint8_t start_idx, float distance[])
 {
-    if (start_idx + count > MOTOR_NUM) return;
+	float max_distance = 0;
+	uint16_t speed[MOTOR_NUM];
 
-    float max_abs_dis = 0.0f;
-    for (uint8_t i = 0; i < count; i++) {
-        float abs_dis = fabsf(distance[i]);
-        if (abs_dis > max_abs_dis) max_abs_dis = abs_dis;
-    }
+	// 检查每个电机的位移限制
+	for (int i = start_idx; i < count; i++)
+	{
+		float displacement = distance[i];
+		// 计算绝对位移用于速度分配
+		float abs_distance = fabsf(displacement);
+		max_distance = fmax(max_distance, abs_distance);
+	}
 
-#if defined(MOTOR_DRIVER_EMM_V5)
-    // 原步进电机流程：逐轴预置命令，最后同步触发
-    for (uint8_t i = 0; i < count; i++) {
-        uint8_t idx = start_idx + i;
-        GlobalMotor *gm = &motor_ctx[idx].global_motor;
-        float ratio = (max_abs_dis > 0) ? fabsf(distance[i]) / max_abs_dis : 0.0f;
-        float vel_rpm = ratio * gm->vel_max;
-        float angle = distance[i] * 360.0f / gm->motor.stepper_motor.daocheng;
-        motor_run(idx, vel_rpm, angle, 1);
-        HAL_Delay(8);
-    }
-    Emm_V5_Synchronous_motion(0);
-    HAL_Delay(10);
+	// ==================== 速度分配 ====================
+	// 动态速度调整：线性比例控制，考虑每个电机的最大速度限制
+	for (int i = start_idx; i < start_idx + count; i++)
+	{
+		float abs_distance = fabsf(distance[i-start_idx]);
+		float ratio = (max_distance > 0) ? (abs_distance / max_distance) : 0;
 
-#elif defined(MOTOR_DRIVER_SCSCL)
-    // 使用飞特 SyncWritePos 实现多舵机同步
-    // ✅ 优化：减小栈分配，避免溢出
-    // 使用动态大小数组，而不是固定分配 MOTOR_NUM 大小
-    uint8_t  id_arr[count];    // 只分配需要的大小
-    uint16_t pos_arr[count];
-    uint16_t time_arr[count];
-    uint16_t speed_arr[count];
+		// 步进电机速度分配计算
+		float vel_max = global_motor[i].vel_max / 60.0f * global_motor[i].stepper_motor.daocheng;
 
-    for (uint8_t i = 0; i < count; i++) {
-        uint8_t idx = start_idx + i;
-        GlobalMotor *gm = &motor_ctx[idx].global_motor;
-        float ratio = (max_abs_dis > 0) ? fabsf(distance[i]) / max_abs_dis : 0.0f;
-        float vel_rpm = ratio * gm->vel_max;
-        float angle = distance[i] / (float) (2 * M_PI * 5);
+		// 计算当前步进电机速度
+		float calculated_speed = ratio * vel_max;
+		speed[i] =  calculated_speed == 0? (uint16_t)vel_max: (uint16_t)calculated_speed;
+		// 储存目标电机位移与速度
+		global_motor[i].target_pos = distance[i-start_idx];
+		global_motor[i].stepper_motor.target_vel = speed[i];
+	}
 
-        id_arr[i] = gm->id;
-        pos_arr[i] = angle_to_scscl_pos_int(angle*100);
-        speed_arr[i] = rpm_to_scscl_speed_int(vel_rpm*100);
-        time_arr[i] = 0;      // 不指定时间
-    }
+	// ==================== 执行同步控制 ====================
+	// 最后一个电机用于其他控制
+	for (int i = start_idx; i < start_idx + count; i++)
+	{
+		motor_run(i, global_motor[i].stepper_motor.target_vel, global_motor[i].target_pos, true);
 
-    // 同步写入所有舵机
-    SyncWritePos(id_arr, count, pos_arr, time_arr, speed_arr);
-    HAL_Delay(10);
-#endif
+		// 等待当前电机的 3 帧全部发出，避免 burst 堵塞
+		uint32_t wait = 50000; // ~1ms @480MHz
+		while (HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan1) < 3 && wait-- > 0) {
+			for (volatile int d = 0; d < 48; d++); // ~100ns
+		}
+		if (wait == 0) {
+			// CAN 堵塞 → 等待后重启恢复
+			HAL_FDCAN_Stop(&hfdcan1);
+			osDelay(20);  // 等待总线错误帧消散
+			HAL_FDCAN_Start(&hfdcan1);
+			// 重新激活中断通知
+			HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
+			HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_TX_COMPLETE, 0);
+		}
+
+		// 帧组间延迟：给总线时间发送当前电机的帧，再发下一个电机
+		osDelay(2);  // 2ms，500kbps 下足够发完 3 帧（~0.7ms）
+	}
+
+	// 触发同步控制
+	X_V2_Synchronous_motion(0);
+	osDelay(10);
 }
 
-/* ==================== 运动学控制接口 ==================== */
-// void motor_kinematic_control(Kinematic kinematic, uint8_t R, float theta[], int dir[], float deltaL[])
-// {
-//     float phi[2];
-//     motor_sync_control(MOTOR_NUM, 0, deltaL);
-// }
+/**
+ *
+ * @param kinematic : 运动学函数，接入不同运动学模型
+ * @param R : 半径 mm
+ * @param theta : 弯曲角 rad
+ * @param phi : 旋转角 rad
+ * @param deltaL : 变化长度 mm
+ */
+void motor_kinematic_control (Kinematic kinematic, float R[], float theta[], float phi, float deltaL[])
+{
+	// ==================== 计算肌腱长度变化 ====================
+	kinematic(R, theta, phi, deltaL);
 
-/* ==================== 角度/位移换算 ==================== */
-// 以下两个函数为纯数学运算，与底层驱动无关，无需修改
+	// ==================== 检查计算结果 ====================
+	for (int i = 0; i < MOTOR_NUM; i++) {
+		if (isnan(deltaL[i]) || isinf(deltaL[i])) {
+
+			deltaL[i] = 0.0f; // 设为0防止错误传播
+		}
+	}
+
+	// ==================== 执行同步控制 ====================
+	motor_sync_control(9, MOTOR_ID, deltaL);
+}
+
+/**
+ * @brief 将步进电机的角度信息转换为位移信息
+ * @param motor_index: 电机索引
+ * @param angle: 角度信息（单位：度）
+ * @return 位移信息（单位：mm）
+ */
 float motor_angle_to_displacement(uint8_t motor_index, float angle)
 {
-    if (motor_index >= MOTOR_NUM) return 0.0f;
-    GlobalMotor *gm = &motor_ctx[motor_index].global_motor;
-    StepperMotor *sm = &gm->motor.stepper_motor;
+    if (motor_index >= MOTOR_NUM) {
+        return 0.0f;
+    }
 
-    float steps_per_rev = 360.0f / sm->step_angle * sm->xifen;
+    StepperMotor *stepper = &global_motor[motor_index].stepper_motor;
+
+    // 计算每转的步数
+    float steps_per_rev = 360.0f / stepper->step_angle * stepper->xifen;
+
+    // 计算角度对应的步数
     float steps = angle / 360.0f * steps_per_rev;
-    float displacement = steps * sm->daocheng / steps_per_rev;
 
-    sm->current_pos = displacement;
-    gm->current_pos = angle * (float)(3.1415926f / 180.0f);
+    // 计算位移：步数 * 导程 / 每转步数
+    float displacement = steps * stepper -> daocheng / (360.0f / stepper->step_angle * stepper->xifen);
+
+    // 更新电机结构体中的位置信息
+    stepper -> current_pos = displacement;
+    global_motor[motor_index].current_pos = angle * 180.0f / 3.1415926f; // 转换为弧度并存储
+
     return displacement;
 }
 
+/**
+ * @brief 将位移信息转换为步进电机的角度信息
+ * @param motor_index: 电机索引
+ * @param displacement: 位移信息（单位：mm）
+ * @return 角度信息（单位：度）
+ */
 float motor_displacement_to_angle(uint8_t motor_index, float displacement)
 {
-    if (motor_index >= MOTOR_NUM) return 0.0f;
-    GlobalMotor *gm = &motor_ctx[motor_index].global_motor;
-    StepperMotor *sm = &gm->motor.stepper_motor;
+    if (motor_index >= MOTOR_NUM) {
+        return 0.0f;
+    }
 
-    float steps_per_rev = 360.0f / sm->step_angle * sm->xifen;
-    float steps = displacement * steps_per_rev / sm->daocheng;
+    StepperMotor *stepper = &global_motor[motor_index].stepper_motor;
+
+    // 计算每转的步数
+    float steps_per_rev = 360.0f / stepper->step_angle * stepper->xifen;
+
+    // 计算位移对应的步数
+    float steps = displacement * steps_per_rev / stepper->daocheng;
+
+    // 计算角度：步数 / 每转步数 * 360度
     float angle = steps / steps_per_rev * 360.0f;
 
-    sm->current_pos = displacement;
-    gm->current_pos = angle * (float)(3.1415926f / 180.0f);
+    // 更新电机结构体中的位置信息
+    stepper->current_pos = displacement;
+    global_motor[motor_index].current_pos = angle * 180.0f / 3.1415926f; // 转换为弧度并存储
+
     return angle;
 }
-/* ==================== 状态检查 ==================== */
+
+// ==================== 电机状态定期检查 ====================
+
+/**
+ * @brief 电机状态定期检查函数
+ *
+ * 应定期调用（如每100ms），检查电机状态和限制条件
+ */
 void motor_status_check(void)
 {
+
     for (int i = 0; i < MOTOR_NUM; i++) {
-        GlobalMotor *gm = &motor_ctx[i].global_motor;
-#if defined(MOTOR_DRIVER_EMM_V5)
-        Emm_V5_Read_Sys_Params(gm->id, S_CPOS);
-        HAL_Delay(10);
-        Emm_V5_Read_Sys_Params(gm->id, S_VEL);
-#elif defined(MOTOR_DRIVER_SCSCL)
-        // 读取舵机当前位置和速度（速度可能为负载值，需根据需求选择）
-        int pos = ReadPos(gm->id);
-        int speed = ReadSpeed(gm->id);
-        gm->current_pos = (float)(pos) / 4096.0f * 360.0f;  // 12位编码器 → 角度
-    	gm->current_vel = (float)(speed & 0x7FFF) * 0.1f;    // 15位速度值 → °/s
-    	//  uint8_t data[2];
-    	//  data[0] = pos & 0xFF;
-    	//  data[1] = (pos >> 8) & 0xFF;
-
-#endif
-        HAL_Delay(10);
+    	X_V2_Read_Sys_Params(global_motor[i].id, S_CPOS);
+    	osDelay(1); // 延时等待响应
+    	X_V2_Read_Sys_Params(global_motor[i].id, S_VEL);
+    	osDelay(1); // 延时等待响应
     }
-}
-
-/* ==================== 完整控制接口 ==================== */
-void motor_full_control(uint8_t idx, uint8_t dir, float dist, float velocity, float acceleration)
-{
-    if (idx >= MOTOR_NUM) return;
-    GlobalMotor *gm = &motor_ctx[idx].global_motor;
-    float displacement = (dir == 0) ? -dist : dist;
-
-    gm->motor.stepper_motor.target_pos = gm->motor.stepper_motor.current_pos + displacement;
-    gm->motor.stepper_motor.target_vel = velocity;
-    gm->motor.stepper_motor.current_acc = acceleration;
-
-    motor_run(idx, velocity / 100.0f, gm->motor.stepper_motor.current_pos + displacement, 0);
 }

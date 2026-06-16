@@ -11,10 +11,16 @@
 
 ***	qq：1071378062
 **********************************************************/
-void calculate_L(uint8_t R, float theta, float phi, float deltaL[]) {
-	deltaL[1] = R * theta * cos(phi);
-	deltaL[2] = R * theta * cos(phi + 2.0 / 3.0 * pi);
-	deltaL[3] = R * theta * cos(phi + 4.0 / 3.0 * pi);
+void calculate_L(float R[], float theta[], float phi, float deltaL[]) {
+	deltaL[0] = -R[0] * theta[0] * cos(phi + 2.0 / 3.0 * pi);
+	deltaL[1] = -R[0] * theta[0] * cos(phi + 4.0 / 3.0 * pi);
+	deltaL[2] = -R[0] * theta[0] * cos(phi);
+	deltaL[3] = -R[1] * theta[1] * cos(phi + 2.0 / 3.0 * pi);
+	deltaL[4] = -R[1] * theta[1] * cos(phi + 4.0 / 3.0 * pi);
+	deltaL[5] = -R[1] * theta[1] * cos(phi);
+	deltaL[6] = -R[2] * theta[2] * cos(phi + 2.0 / 3.0 * pi);
+	deltaL[7] = -R[2] * theta[2] * cos(phi + 4.0 / 3.0 * pi);
+	deltaL[8] = -R[2] * theta[2] * cos(phi);
 }
 // ========== 正运动学 ==========
 void forward_kinematics(const robot_params_t *param, const robot_state_t *state,

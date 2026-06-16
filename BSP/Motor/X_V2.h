@@ -3,6 +3,7 @@
 
 #include "fdcan.h"
 #include "Common/can_driver.h"
+#include "stdbool.h"
 /**********************************************************
 ***	X_V2步进闭环控制例程
 ***	编写作者：ZHANGDATOU

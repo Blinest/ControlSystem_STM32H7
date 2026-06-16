@@ -1,9 +1,9 @@
 /**
- * @file Sensor.h
+* @file Sensor.h
  * @brief 传感器驱动头文件
- * 
+ *
  * 定义传感器数据结构和函数接口
- * 
+ *
  * @date 2026-04-02
  * @author Psyduck
  */
@@ -20,9 +20,9 @@
  */
 typedef struct
 {
-	uint16_t x;  /**< X轴数据 */
-	uint16_t y;  /**< Y轴数据 */
-	uint16_t z;  /**< Z轴数据 */
+	float x;  /**< X轴数据 */
+	float y;  /**< Y轴数据 */
+	float z;  /**< Z轴数据 */
 } GlobalSensor;
 
 /**
@@ -63,7 +63,11 @@ void sensor_get_raw_data(uint8_t sensor_id, int16_t* x, int16_t* y, int16_t* z);
  * @param yaw 指向偏航角的指针
  */
 void sensor_get_angle_data(uint8_t sensor_id, float* pitch, float* roll, float* yaw);
-
+/**
+ * @brief 传感器校准
+ * @param sensor_id 传感器ID
+ */
+void sensor_cal(uint8_t sensor_id);
 // 全局传感器数组声明
 extern GlobalSensor global_sensor[SENSOR_NUM];
 

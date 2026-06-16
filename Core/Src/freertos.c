@@ -124,16 +124,16 @@ void MX_FREERTOS_Init(void) {
 
   /* Create the queue(s) */
   /* creation of MotorDataParseQueue */
-  MotorDataParseQueueHandle = osMessageQueueNew (512, sizeof(uint8_t), &MotorDataParseQueue_attributes);
+  MotorDataParseQueueHandle = osMessageQueueNew (256 * 8, sizeof(uint8_t), &MotorDataParseQueue_attributes);
 
   /* creation of PressDataParseQueue */
-  PressDataParseQueueHandle = osMessageQueueNew (512, sizeof(uint8_t), &PressDataParseQueue_attributes);
+  PressDataParseQueueHandle = osMessageQueueNew (256 * 8, sizeof(uint8_t), &PressDataParseQueue_attributes);
 
   /* creation of IMUDataParseQueue */
-  IMUDataParseQueueHandle = osMessageQueueNew (512, sizeof(uint8_t), &IMUDataParseQueue_attributes);
+  IMUDataParseQueueHandle = osMessageQueueNew (256 * 8, sizeof(uint8_t), &IMUDataParseQueue_attributes);
 
   /* creation of CmdCtrlQueue */
-  CmdCtrlQueueHandle = osMessageQueueNew (512, sizeof(uint8_t), &CmdCtrlQueue_attributes);
+  CmdCtrlQueueHandle = osMessageQueueNew (256 * 8, sizeof(uint8_t), &CmdCtrlQueue_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
