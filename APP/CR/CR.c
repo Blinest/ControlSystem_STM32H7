@@ -10,7 +10,7 @@
 
 #include "CR.h"
 #include "usart.h"
-#include "kinematic.h"
+#include "SDM.h"
 #include "Motor/Motor.h"
 #include <stdio.h>
 #include "math.h"
@@ -36,49 +36,90 @@ bool tendon_comp = true;
 **********************************************************/
 
 ContinuumRobot CR;
+
+/** 默认 SDM 力控增益 (可外部修改) */
+float sdm_K_force = 0.05f;
+
 void CR_init(void)
 {
+    /* SDM 初始化: 半径 30mm, 刚度 0.2 N·m/rad, 力峰值 100N, 恢复 0.3, 尖端质量 0.15kg
+     * 臂体水平安装，沿X轴方向 */
+    CR.arm_params[0].L = 0.225;
+    CR.arm_params[1].L = 0.225;
+    float cable_r[SDM_SEGMENTS] = { 0.030f, 0.030f };
+    float mount_dir[3] = { 1.0f, 0.0f, 0.0f };  /* 水平沿X轴 */
+    sdm_init(cable_r, 0.2f, 100.0f, 0.3f, 0.15f, mount_dir);
 
-	CR.operation_space.scale = 20;
-	CR.joint_space.target_theta[0] = 30;
+    CR.operation_space.scale = 20;
+    CR.joint_space.target_theta[0] = 0.5f;
+    CR.joint_space.target_theta[1] = 0.3f;
+    CR.joint_space.target_phi[0]   = 0.0f;
+    CR.joint_space.target_phi[1]   = 0.0f;
 
-    CR.parameter.r[0] = 70; // 肌腱与中心孔距离
+    CR.parameter.r[0] = 70;
     CR.parameter.r[1] = 75;
     CR.parameter.r[2] = 80;
     motor_init();
-	sensor_init();
+    sensor_init();
 }
 
 // 用于控制喷管弯曲
 uint8_t armBend(int seg, char direction, double val)
 {
-	CR.joint_space.target_theta[0] = direction == 1 ? val : -val;
+    if (seg == 1) {
+        CR.joint_space.target_theta[0] = direction == 1 ? (float)val : -(float)val;
+    } else {
+        CR.joint_space.target_theta[1] = direction == 1 ? (float)val : -(float)val;
+    }
     return armBend_edit(seg, direction, val, 0, 0, 0, 0, 90.0, 60.0);
 }
 
-void deltaL_update(void)
+/** @brief 从 global_sensor 提取 6 路肌腱力 (N) */
+static void _get_forces(float forces[SENSOR_NUM])
 {
-    // 存储当前位置
-    float cur_pos[MOTOR_NUM + 1];
+    for (int i = 0; i < SENSOR_NUM; i++) {
+        forces[i] = global_sensor[i].x;
+    }
+}
 
-    for(int i = 1; i <= MOTOR_NUM; i++)
-    {
-        cur_pos[i] = CR.joint_space.deltaL[i];
+/** @brief 执行 SDM 一步控制, 结果写入 CR.joint_space.deltaL */
+static void _sdm_run(void)
+{
+    float forces[SENSOR_NUM];
+    _get_forces(forces);
+
+    /* 从电机编码器读取实际位移反馈 */
+    float deltaL_actual[SDM_WIRES];
+    for (int i = 0; i < SDM_WIRES; i++) {
+        deltaL_actual[i] = global_motor[i].stepper_motor.current_pos;
     }
 
-    calculate_L(CR.parameter.r, CR.joint_space.target_theta,CR.joint_space.target_phi,CR.joint_space.deltaL);
+    float R = CR.parameter.r[0] / 1000.0f;  /* mm → m */
+
+    sdm_step(forces,
+             CR.joint_space.target_theta,
+             CR.joint_space.target_phi,
+             deltaL_actual,
+             sdm_K_force,
+             R,
+             CR.joint_space.deltaL);
+
+    /* NaN/Inf 保护 */
+    for (int i = 0; i < SDM_WIRES; i++) {
+        if (isnan(CR.joint_space.deltaL[i]) || isinf(CR.joint_space.deltaL[i]))
+            CR.joint_space.deltaL[i] = 0.0f;
+    }
 }
 
 void auto_straight(void)
 {
-    for (int i = 0; i < 3; i++)
-    {
+    for (int i = 0; i < SDM_SEGMENTS; i++) {
         CR.joint_space.target_theta[i] = 0;
+        CR.joint_space.target_phi[i]   = 0;
     }
-    CR.joint_space.target_phi = 0;
-	CR.operation_space.scale = 0;
-    deltaL_update();
-    motor_sync_control(MOTOR_NUM, 0, CR.joint_space.deltaL);
+    CR.operation_space.scale = 0;
+    _sdm_run();
+    motor_sync_control(SDM_WIRES, 0, CR.joint_space.deltaL);
 }
 
 /**
@@ -95,24 +136,25 @@ void armRotate(float theta_deg, float step_deg)
     float theta_rad = theta_deg * pi / 180.0f;
 
     // 1. 先弯曲到指定角度（phi=0），等待到位
-    CR.joint_space.target_theta[0] = theta_rad / 3;
-    CR.joint_space.target_theta[1] = theta_rad / 2;
-    CR.joint_space.target_theta[2] = theta_rad;
-    CR.joint_space.target_phi = 0;
-    deltaL_update();
-    motor_sync_control(9, 0, CR.joint_space.deltaL);
-    osDelay(4000);  // 等待弯曲到位（位移大，需要较长时间）
+    CR.joint_space.target_theta[0] = theta_rad / 2.0f;
+    CR.joint_space.target_theta[1] = theta_rad;
+    CR.joint_space.target_phi[0]   = 0;
+    CR.joint_space.target_phi[1]   = 0;
+    _sdm_run();
+    motor_sync_control(SDM_WIRES, 0, CR.joint_space.deltaL);
+    osDelay(4000);
 
-    // 2. 弯曲到位后，逐步旋转 phi（每步只改变旋转角，位移变化小，延时可以短）
+    // 2. 逐步旋转 phi
     for (float phi_deg = step_deg; phi_deg <= 360.0f; phi_deg += step_deg)
     {
-        CR.joint_space.target_phi = phi_deg * pi / 180.0f;
-        deltaL_update();
-        motor_sync_control(9, 0, CR.joint_space.deltaL);
-        osDelay(1000);  // 旋转步进，位移变化小
+        CR.joint_space.target_phi[0] = phi_deg * pi / 180.0f;
+        CR.joint_space.target_phi[1] = phi_deg * pi / 180.0f;
+        _sdm_run();
+        motor_sync_control(SDM_WIRES, 0, CR.joint_space.deltaL);
+        osDelay(1000);
     }
 
-    // 3. 最后归零（从弯曲状态回到零位，位移大，需要较长时间）
+    // 3. 归零
     auto_straight();
     osDelay(5000);
 }
@@ -228,27 +270,6 @@ double tendonCompensation(int seg, char direction, double angle_deg)
     return  theta_compensated;
 }
 
-/**
- * @brief 用于控制截面面积收缩
- * @param direction 1正
- * @param val 目前的取值范围为 50.0f-100.0f，百分数
- */
-void scale_squared(uint8_t direction, float val)
-{
-    // 限制条件
-    if (val < 75) return;
-
-    // 储存到结构体中
-    CR.operation_space.scale = direction == 1? val : -val;
-    // 运动学推导
-    float R = 50;
-    float target;
-    float val_sqrt = sqrtf(val) / 10.0f;
-    target = 2.0f * pi * (R -  val_sqrt * R);
-
-    motor_run(9, 10, target ,false);
-}
-
 uint8_t armBend_edit(int seg, char direction, double val, double g_u, double g_r, double g_d, double g_l, double seg1_limit, double seg2_limit)
 {
     // 节段、角度限制检查
@@ -283,19 +304,22 @@ uint8_t armBend_edit(int seg, char direction, double val, double g_u, double g_r
         default: return 1;
     }
 
-    // 更新补偿后的关节角度
-    CR.joint_space.target_theta[0] = compensated_angle_rad / 3;
-    CR.joint_space.target_theta[1] = compensated_angle_rad / 2;
-    CR.joint_space.target_theta[2] = compensated_angle_rad;
-    CR.joint_space.target_phi = phi;
-    deltaL_update();
+    // 更新补偿后的关节角度 (两段模型)
+    if (seg == 1) {
+        CR.joint_space.target_theta[0] = compensated_angle_rad;
+        CR.joint_space.target_phi[0] = phi;
+    } else {
+        CR.joint_space.target_theta[1] = compensated_angle_rad;
+        CR.joint_space.target_phi[1] = phi;
+    }
+    _sdm_run();
 
     // 校验 + 驱动步进电机
-    for (int i = 0; i < 9; i++) {
+    for (int i = 0; i < SDM_WIRES; i++) {
         if (isnan(CR.joint_space.deltaL[i]) || isinf(CR.joint_space.deltaL[i]))
             CR.joint_space.deltaL[i] = 0.0f;
     }
-    motor_sync_control(MOTOR_NUM - 1, 0, CR.joint_space.deltaL);
+    motor_sync_control(SDM_WIRES, 0, CR.joint_space.deltaL);
     return 0;
 }
 

@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <math.h>
 #include <string.h>
+
+#include "SDM.h"
 /**********************************************************
 ***	编写作者：blinest
 
@@ -28,12 +30,12 @@ typedef struct CR_Parameter
 
 typedef struct JointSpace
 {
-	float target_phi;
-	float target_theta[3];
+	float target_phi[SDM_SEGMENTS];
+	float target_theta[SDM_SEGMENTS];
 	float total_target_theta;
 	float current_phi;
-	float current_theta[3];
-	float deltaL[9];
+	float current_theta[SDM_SEGMENTS];
+	float deltaL[SDM_WIRES];
 } JointSpace;
 
 typedef struct OperationSpace
@@ -83,7 +85,6 @@ void auto_straight(void);
 void armRotate(float theta_deg, float step_deg);
 void action_group_demo(void);
 int direction_to_index(char direction);
-void scale_squared(uint8_t direction, float val);
 double tendonCompensation(int seg, char direction, double angle_deg);
 
 // 矩阵工具

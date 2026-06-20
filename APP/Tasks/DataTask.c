@@ -24,6 +24,7 @@
 #include "Common/can_driver.h"
 #include "CR/CR.h"
 #include "Sensor/WT_IMU.h"
+#include "Sensor/CMCU-06.h"
 
 
 #define RX_BUF_SIZE 256
@@ -58,20 +59,31 @@ void StartDataHandleTask(void *argument)
         // 每500ms读取一次传感器数据
         if ((current_time - last_sensor_read_time) >= 500)
         {
-            sensor_single_read(0x50);
+            // 读取6个压力传感器（地址1-6）
+            sensor_multi_read();
+            // 同时读取IMU
+            // IMU_single_read(0x50);
             last_sensor_read_time = current_time;
         }
 
         // ====================================
         // 2. 数据解析: 从队列接收并解析
         // ====================================
+
+        // USART1 RX 队列包含两类数据：
+        // 1) CMCU-06 压力传感器响应（Modbus-RTU协议）
+        // 2) WT_IMU 数据帧
+        // 分别送入对应的解析器
         while (osMessageQueueGet(MotorDataParseQueueHandle, &rx_byte, NULL, 0) == osOK)
         {
+            // CMCU-06 Modbus-RTU 响应解析
+            CMCU_06_Parse_Byte(rx_byte);
+            // Wit-IMU 数据帧解析
             WitSerialDataIn(rx_byte);
         }
-        global_sensor[0].x = sReg[Roll+0] / 32768.0f * 180.0f;
-        global_sensor[0].y = sReg[Roll+1] / 32768.0f * 180.0f;
-        global_sensor[0].z = sReg[Roll+2] / 32768.0f * 180.0f;
+
+        // IMU角度数据单独读取，不影响6个压力传感器的原始数据
+        // （压力传感器数据在 CMCU_06_Parse_Byte 中直接更新 global_sensor[0..5].x）
 
         // ====================================
         // 3. 数据发送: 打包并发送给上位机
