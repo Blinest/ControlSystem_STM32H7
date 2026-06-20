@@ -10,7 +10,7 @@
 #include "pc_cmd_parser.h"
 #include "Motor/Motor.h"
 #include "Sensor/Sensor.h"
-#include "CR/kinematic.h"
+#include "CR/SDM.h"
 #include "usart.h"
 #include "cmsis_os2.h"
 #include "string.h"
@@ -167,11 +167,7 @@ static void pc_cmd_parse_and_execute(void)
                                 	armBend(1, dir, val);
 
                                 } else if (addr == 0xFD) {
-                                    // 截面收缩指令: 地址=0xFD, 方向, 比例
-                                    uint8_t direction = s_ctrlBuf[5];
-                                    uint16_t scale = (s_ctrlBuf[6] << 8) | s_ctrlBuf[7];
-									float val = (float)scale / 100.f;
-                                	scale_squared(direction, val);
+                                    // 保留以备后续扩展
                                 }
                             }
                         }
@@ -189,10 +185,11 @@ static void pc_cmd_parse_and_execute(void)
                     sensor_init();
                     break;
                 case FUNC_SENSOR_CAL:
-                    // 传感器自检
-                    if (data_len >= 1) {
-                        uint8_t sensor_id = s_ctrlBuf[3];
-                        sensor_cal(sensor_id);
+                    // 传感器校准: [sensor_id(1)] [weight_H(1)] [weight_L(1)]
+                    if (data_len >= 3) {
+                        uint8_t  sensor_id = s_ctrlBuf[3];
+                        uint16_t weight_10x = (s_ctrlBuf[4] << 8) | s_ctrlBuf[5];
+                        sensor_cal(sensor_id, weight_10x);
                     }
                     break;
                 default:

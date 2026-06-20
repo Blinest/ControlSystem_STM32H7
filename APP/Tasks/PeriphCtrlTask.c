@@ -14,10 +14,6 @@
 #include "stdio.h"
 #include "usart.h"
 
-
-#include "CR/skin_detect.h"
-#include "CR/contour.h"
-#include "CR/hand_gesture.h"
 #include "Common/pc_cmd_parser.h"
 #define RX_BUF_SIZE 256
 

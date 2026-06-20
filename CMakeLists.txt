@@ -39,7 +39,8 @@ add_executable(${CMAKE_PROJECT_NAME}
         APP/Common/XV2_cmd_parser.c
         BSP/Motor/X_V2.c
         BSP/Motor/X_V2.h
-        BSP/Sensor/WT_IMU.c)
+        BSP/Sensor/WT_IMU.c
+        BSP/Sensor/CMCU-06.c)
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
@@ -53,7 +54,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         # Add user sources here
         BSP/Sensor/Sensor.c
-        App/CR/kinematic.c
+        App/CR/SDM.c
         App/Common/can_driver.c
         App/Common/can_driver.h
         App/Tasks/DataTask.c
@@ -62,11 +63,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         APP/Common/sensor_cmd_parser.c
         App/Common/cmd_packer.c
         App/CR/CR.c
-        App/CR/skin_detect.c
-        App/CR/contour.c
-        App/CR/hand_gesture.c
         BSP/Motor/Motor.c
-        BSP/Motor/servo.c
         BSP/Sensor/IMU.c
 )
 

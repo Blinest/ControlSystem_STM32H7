@@ -13,7 +13,7 @@
 
 #include <stdint.h>
 
-#define SENSOR_NUM 1
+#define SENSOR_NUM 6
 
 /**
  * @brief 全局传感器数据结构
@@ -32,7 +32,7 @@ void sensor_init(void);
 
 /**
  * @brief 单传感器数据读取函数
- * @param sensor_id 传感器ID (1-4)
+ * @param sensor_id 传感器ID (1-6)
  */
 void sensor_single_read(uint8_t sensor_id);
 
@@ -65,9 +65,10 @@ void sensor_get_raw_data(uint8_t sensor_id, int16_t* x, int16_t* y, int16_t* z);
 void sensor_get_angle_data(uint8_t sensor_id, float* pitch, float* roll, float* yaw);
 /**
  * @brief 传感器校准
- * @param sensor_id 传感器ID
+ * @param sensor_id 传感器ID (1-6)
+ * @param weight_10x 砝码重量值 (g×10, 例如 500g → 5000)
  */
-void sensor_cal(uint8_t sensor_id);
+void sensor_cal(uint8_t sensor_id, uint16_t weight_10x);
 // 全局传感器数组声明
 extern GlobalSensor global_sensor[SENSOR_NUM];
 

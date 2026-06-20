@@ -21,7 +21,7 @@
 #include "fdcan.h"
 // #include "Emm_V5.h"
 #include "X_V2.h"
-#include "CR/kinematic.h"
+#include "CR/SDM.h"
 
 // 创建电机与电机反馈数据结构体
 MotorFeedback motor_feedback[MOTOR_NUM];

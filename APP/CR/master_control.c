@@ -3,7 +3,7 @@
 //
 
 #include "master_control.h"
-#include "kinematic.h"
+#include "SDM.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
