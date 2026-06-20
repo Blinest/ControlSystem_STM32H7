@@ -164,7 +164,7 @@ static void _inverse_kinematics(const float deltaL_actual[SDM_WIRES],
     /* 段1 独立贡献 (注意丝3,5 的公式里段1项是负号) */
     float d0 = (deltaL_actual[1] - s0_contribution_1) / R;   /* θ₁ cos(φ₁ + π/3) */
     float d1 = -(deltaL_actual[3] - s0_contribution_3) / R;  /* θ₁ cos(φ₁ + π) */
-    float d2 = -(deltaL_actual[5] - s0_contribution_5) / R;  /* θ₁ cos(φ₁ + 5π/3) */
+    float d2 = -(deltaL_actual[5] - s0_contribution_5) / R;  /* 新增传感器校准功能θ₁ cos(φ₁ + 5π/3) */
 
     diff = d2 - d1;
     theta_out[1] = sqrtf(d0 * d0 + diff * diff / 3.0f);
