@@ -1,7 +1,5 @@
 #include <stdint.h>
 #include <math.h>
-#include <stdlib.h>
-#include <string.h>
 
 #include "kinematic.h"
 
@@ -15,145 +13,57 @@ void calculate_L(float R[], float theta[], float phi, float deltaL[]) {
 	deltaL[0] = -R[0] * theta[0] * cos(phi + 2.0 / 3.0 * pi);
 	deltaL[1] = -R[0] * theta[0] * cos(phi + 4.0 / 3.0 * pi);
 	deltaL[2] = -R[0] * theta[0] * cos(phi);
-	deltaL[3] = -R[1] * theta[1] * cos(phi + 2.0 / 3.0 * pi);
-	deltaL[4] = -R[1] * theta[1] * cos(phi + 4.0 / 3.0 * pi);
-	deltaL[5] = -R[1] * theta[1] * cos(phi);
-	deltaL[6] = -R[2] * theta[2] * cos(phi + 2.0 / 3.0 * pi);
-	deltaL[7] = -R[2] * theta[2] * cos(phi + 4.0 / 3.0 * pi);
-	deltaL[8] = -R[2] * theta[2] * cos(phi);
+	deltaL[3] = deltaL[0] - R[1] * theta[1] * cos(phi + 2.0 / 3.0 * pi);
+	deltaL[4] = deltaL[1] - R[1] * theta[1] * cos(phi + 4.0 / 3.0 * pi);
+	deltaL[5] = deltaL[2] - R[1] * theta[1] * cos(phi);
+	deltaL[6] = deltaL[3] - R[2] * theta[2] * cos(phi + 2.0 / 3.0 * pi);
+	deltaL[7] = deltaL[4] - R[2] * theta[2] * cos(phi + 4.0 / 3.0 * pi);
+	deltaL[8] = deltaL[5] - R[2] * theta[2] * cos(phi);
 }
-// ========== 正运动学 ==========
-void forward_kinematics(const robot_params_t *param, const robot_state_t *state,
-						vec3_t *pos, double R[3][3]) {
-	double d = state->psi[0];
-	se3_t T = { .m = {{1,0,0,0},{0,1,0,0},{0,0,1,d},{0,0,0,1}} };
-	for (int i = 0; i < param->n_seg; i++) {
-		double theta = state->psi[1 + 2*i];
-		double alpha = state->psi[2 + 2*i];
-		double L = param->L[i];
-		se3_t seg;
-		if (fabs(theta) < EPS) {
-			mat3_identity(seg.m);
-			seg.m[0][3] = 0; seg.m[1][3] = 0; seg.m[2][3] = L;
-		} else {
-			double rho = L / theta;
-			vec3_t axis = { -sin(alpha), cos(alpha), 0 };
-			double norm = sqrt(axis.x*axis.x + axis.y*axis.y + axis.z*axis.z);
-			axis.x /= norm; axis.y /= norm; axis.z /= norm;
-			mat3_rot_axis_angle(axis, theta, seg.m);
-			seg.m[0][3] = rho * (1 - cos(theta)) * cos(alpha);
-			seg.m[1][3] = rho * (1 - cos(theta)) * sin(alpha);
-			seg.m[2][3] = rho * sin(theta);
-		}
-		seg.m[3][0] = seg.m[3][1] = seg.m[3][2] = 0; seg.m[3][3] = 1;
-		se3_t T_new;
-		// 矩阵乘法 T = T * seg
-		for (int r = 0; r < 4; r++)
-			for (int c = 0; c < 4; c++) {
-				T_new.m[r][c] = 0;
-				for (int k = 0; k < 4; k++)
-					T_new.m[r][c] += T.m[r][k] * seg.m[k][c];
-			}
-		T = T_new;
-	}
-	// 末端旋转
-	double ar = state->psi[param->dof - 1];
-	double R_end[3][3] = { {cos(ar), -sin(ar), 0}, {sin(ar), cos(ar), 0}, {0,0,1} };
-	double R_cur[3][3];
-	for (int i=0;i<3;i++) for(int j=0;j<3;j++) R_cur[i][j] = T.m[i][j];
-	mat3_mul(R_cur, R_end, R);
-	pos->x = T.m[0][3]; pos->y = T.m[1][3]; pos->z = T.m[2][3];
-}
-void body_point_fk(const robot_params_t *param, const robot_state_t *state,
-                   int seg_idx, double eta, vec3_t *point, double R[3][3]) {
-    double d = state->psi[0];
-    se3_t T = { .m = {{1,0,0,0},{0,1,0,0},{0,0,1,d},{0,0,0,1}} };
-    // 累积到 seg_idx 段之前
-    for (int i = 0; i < seg_idx; i++) {
-        double theta = state->psi[1 + 2*i];
-        double alpha = state->psi[2 + 2*i];
-        double L = param->L[i];
-        se3_t seg;
-        if (fabs(theta) < EPS) {
-            mat3_identity(seg.m);
-            seg.m[0][3] = 0; seg.m[1][3] = 0; seg.m[2][3] = L;
-        } else {
-            double rho = L / theta;
-            vec3_t axis = { -sin(alpha), cos(alpha), 0 };
-            double norm = sqrt(axis.x*axis.x + axis.y*axis.y + axis.z*axis.z);
-            axis.x /= norm; axis.y /= norm; axis.z /= norm;
-            mat3_rot_axis_angle(axis, theta, seg.m);
-            seg.m[0][3] = rho * (1 - cos(theta)) * cos(alpha);
-            seg.m[1][3] = rho * (1 - cos(theta)) * sin(alpha);
-            seg.m[2][3] = rho * sin(theta);
-        }
-        seg.m[3][0]=seg.m[3][1]=seg.m[3][2]=0; seg.m[3][3]=1;
-        se3_t T_new;
-        for (int r=0;r<4;r++) for(int c=0;c<4;c++) {
-            T_new.m[r][c] = 0;
-            for(int k=0;k<4;k++) T_new.m[r][c] += T.m[r][k] * seg.m[k][c];
-        }
-        T = T_new;
+// ========== 肌腱补偿模型 ==========
+// 非线性补偿: commanded_deg = a * desired_deg + b * desired_deg^2
+// a —— 线性项（效率系数倒数），b —— 二次项（大角度效率衰减/饱和）
+// 实验表明系统存在显著非线性（70°命令仅产生20°弯曲），
+// 故引入二次补偿模型，当b<0时实现大角度饱和（效率随角度增大而降低）。
+// 限幅 [min_ratio, max_ratio] 作为安全边界。
+
+int direction_to_index(char direction) {
+    switch(direction) {
+        case 'u': return 0;
+        case 'r': return 1;
+        case 'd': return 2;
+        case 'l': return 3;
+        default: return 0;
     }
-    // 当前段的 eta 部分
-    double theta = state->psi[1 + 2*seg_idx];
-    double alpha = state->psi[2 + 2*seg_idx];
-    double L = param->L[seg_idx];
-    se3_t seg_eta;
-    double theta_eta = eta * theta;
-    if (fabs(theta) < EPS) {
-        mat3_identity(seg_eta.m);
-        seg_eta.m[0][3] = 0; seg_eta.m[1][3] = 0; seg_eta.m[2][3] = eta * L;
-    } else {
-        double rho = L / theta;
-        vec3_t axis = { -sin(alpha), cos(alpha), 0 };
-        double norm = sqrt(axis.x*axis.x + axis.y*axis.y + axis.z*axis.z);
-        axis.x /= norm; axis.y /= norm; axis.z /= norm;
-        mat3_rot_axis_angle(axis, theta_eta, seg_eta.m);
-        seg_eta.m[0][3] = rho * (1 - cos(theta_eta)) * cos(alpha);
-        seg_eta.m[1][3] = rho * (1 - cos(theta_eta)) * sin(alpha);
-        seg_eta.m[2][3] = rho * sin(theta_eta);
-    }
-    seg_eta.m[3][0]=seg_eta.m[3][1]=seg_eta.m[3][2]=0; seg_eta.m[3][3]=1;
-    se3_t T_total;
-    for (int r=0;r<4;r++) for(int c=0;c<4;c++) {
-        T_total.m[r][c] = 0;
-        for(int k=0;k<4;k++) T_total.m[r][c] += T.m[r][k] * seg_eta.m[k][c];
-    }
-    point->x = T_total.m[0][3]; point->y = T_total.m[1][3]; point->z = T_total.m[2][3];
-    for (int i=0;i<3;i++) for(int j=0;j<3;j++) R[i][j] = T_total.m[i][j];
 }
 
-// 数值雅可比
-void jacobian_numerical(const robot_params_t *param, const robot_state_t *state,
-                        int dof, double J[][dof]) {
-    vec3_t pos0; double R0[3][3];
-    forward_kinematics(param, state, &pos0, R0);
-    double delta = 1e-6;
-    for (int j = 0; j < dof; j++) {
-        robot_state_t state_plus = *state;
-        state_plus.psi = (double*)malloc(dof * sizeof(double));
-        memcpy(state_plus.psi, state->psi, dof*sizeof(double));
-        state_plus.psi[j] += delta;
-        vec3_t pos1; double R1[3][3];
-        forward_kinematics(param, &state_plus, &pos1, R1);
-        J[0][j] = (pos1.x - pos0.x) / delta;
-        J[1][j] = (pos1.y - pos0.y) / delta;
-        J[2][j] = (pos1.z - pos0.z) / delta;
-        double R_rel[3][3];
-        double R0_T[3][3];
-        for (int i=0;i<3;i++) for(int k=0;k<3;k++) R0_T[i][k] = R0[k][i];
-        mat3_mul(R1, R0_T, R_rel);
-        double trace = R_rel[0][0] + R_rel[1][1] + R_rel[2][2];
-        double theta = acos(fmax(-1.0, fmin(1.0, (trace-1)/2)));
-        if (fabs(theta) < EPS) {
-            J[3][j] = J[4][j] = J[5][j] = 0;
-        } else {
-            double s = 0.5 * theta / sin(theta);
-            J[3][j] = s * (R_rel[2][1] - R_rel[1][2]) / delta;
-            J[4][j] = s * (R_rel[0][2] - R_rel[2][0]) / delta;
-            J[5][j] = s * (R_rel[1][0] - R_rel[0][1]) / delta;
-        }
-        free(state_plus.psi);
+// 非线性补偿
+double tendonCompensation(int seg, char direction, float angle_deg)
+{
+    int dir_idx = direction_to_index(direction);
+    double angle_rad = angle_deg * pi / 180.0;
+
+    // 使用 calib_a / calib_b 做非线性映射
+    double a = CR.arm_params[seg-1].calib_a[dir_idx];
+    double b = CR.arm_params[seg-1].calib_b[dir_idx];
+
+    // 命令角度（度） = a * desired + b * desired^2
+    double cmd_deg = a * angle_deg + b * angle_deg * angle_deg;
+    if (cmd_deg < 0) cmd_deg = 0;
+
+    // 安全限幅（用户可配置的 clamp 范围）
+    double max_ratio = CR.arm_params[seg-1].calib_max_ratio;
+    double min_ratio = CR.arm_params[seg-1].calib_min_ratio;
+    double min_allowed = min_ratio * angle_deg;
+    double max_allowed = max_ratio * angle_deg;
+
+    if (cmd_deg < min_allowed) {
+        cmd_deg = min_allowed;
     }
+    else if (cmd_deg > max_allowed) {
+        cmd_deg = max_allowed;
+    }
+
+    // 返回弧度（供下游 theta 分配使用）
+    return cmd_deg * pi / 180.0;
 }

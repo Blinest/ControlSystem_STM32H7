@@ -32,14 +32,7 @@ message("Build type: " ${CMAKE_BUILD_TYPE})
 enable_language(C ASM)
 
 # Create an executable object type
-add_executable(${CMAKE_PROJECT_NAME}
-        BSP/Motor/SCSCL.c
-        BSP/Motor/SCS.c
-        BSP/Motor/SCSerial.c
-        APP/Common/XV2_cmd_parser.c
-        BSP/Motor/X_V2.c
-        BSP/Motor/X_V2.h
-        BSP/Sensor/WT_IMU.c)
+add_executable(${CMAKE_PROJECT_NAME} "")
 
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
@@ -52,19 +45,21 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         # Add user sources here
+        BSP/Motor/SCSCL.c
+        BSP/Motor/SCS.c
+        BSP/Motor/SCSerial.c
+        APP/Common/XV2_cmd_parser.c
+        BSP/Motor/X_V2.c
+        BSP/Sensor/WT_IMU.c
         BSP/Sensor/Sensor.c
         App/CR/kinematic.c
         App/Common/can_driver.c
-        App/Common/can_driver.h
         App/Tasks/DataTask.c
         APP/Tasks/PeriphCtrlTask.c
         App/Common/pc_cmd_parser.c
         APP/Common/sensor_cmd_parser.c
         App/Common/cmd_packer.c
         App/CR/CR.c
-        App/CR/skin_detect.c
-        App/CR/contour.c
-        App/CR/hand_gesture.c
         BSP/Motor/Motor.c
         BSP/Motor/servo.c
         BSP/Sensor/IMU.c
