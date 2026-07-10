@@ -18,13 +18,29 @@
 #include "math.h"
 #include "Sensor/Sensor.h"
 
-
-#define CR_THETA1_MAX 60
-#define CR_THETA1_MIN -40
-#define CR_THETA2_MAX 60
-#define CR_THETA2_MIN -40
-#define CR_ANGLE_RANGE 30
 #define pi 3.1415926535
+
+// ===== 分段式角度分配参数 =====
+// 每段独立分配 20° 输入到达肌腱限位，保证电机位移：
+// 20°→M0≈24.2mm, 40°→M3≈51.3mm, 60°→M6≈100.8mm
+// 0~20°: 段1独占, 段2=段3=0
+// 20~40°: 段1=22°(clamp), 段2独占剩余, 段3=0
+// 40~60°: 段1=22°, 段2=23°, 段3独占剩余
+#define SEG_INPUT_LIMIT 20.0f  // 每段独立输入的触限角度
+
+// 三段肌腱行程限（mm）：压缩侧M2/5/8的物理限，与r_bias解耦
+#define SEG_LENGTH1 25.0f
+#define SEG_LENGTH2 28.0f
+#define SEG_LENGTH3 51.2f
+
+// 三段实际弯曲角度机械限值（度）
+#define ACTUAL_LIMIT1 20.0f
+#define ACTUAL_LIMIT2 40.0f
+#define ACTUAL_LIMIT3 60.0f
+
+// 总角度安全限值
+#define TOTAL_ANGLE_LIMIT 120.0f
+
 
 /*
  臂体补偿器
@@ -43,30 +59,28 @@ void CR_init(void)
     CR.operation_space.scale = 20;
 
     // 直接对数组元素逐个赋值，不影响结构体其他成员
-    CR.joint_space.target_theta[0] = 0;
-    CR.joint_space.target_theta[1] = 0;
-    CR.joint_space.target_theta[2] = 0;
+    CR.joint_space.model_theta[0] = 0;
+    CR.joint_space.model_theta[1] = 0;
+    CR.joint_space.model_theta[2] = 0;
 
     CR.parameter.r[0] = 70;
     CR.parameter.r[1] = 75;
     CR.parameter.r[2] = 80;
 
-    // 初始化方向增益（默认1.0，无校准）
-    CR.arm_params[0].direction_gain[0] = 1.0f;
-    CR.arm_params[0].direction_gain[1] = 1.0f;
-    CR.arm_params[0].direction_gain[2] = 1.0f;
-    CR.arm_params[0].direction_gain[3] = 1.0f;
-    CR.arm_params[1].direction_gain[0] = 1.0f;
-    CR.arm_params[1].direction_gain[1] = 1.0f;
-    CR.arm_params[1].direction_gain[2] = 1.0f;
-    CR.arm_params[1].direction_gain[3] = 1.0f;
+    // 初始化每段独立补偿系数（分段式分配，每段独立20°输入触限）
+    // A = limit_deg / SEG_INPUT_LIMIT, B=0纯线性
+    CR.arm_params[0].calib_a = 22.0f / SEG_INPUT_LIMIT;  // 1.1
+    CR.arm_params[0].calib_b = 0.0f;
+    // 段2 (R=75)
+    CR.arm_params[1].calib_a = 23.0f / SEG_INPUT_LIMIT;  // 1.15
+    CR.arm_params[1].calib_b = 0.0f;
+    // 段3 (R=80)
+    CR.arm_params[2].calib_a = 39.4f / SEG_INPUT_LIMIT;  // 1.97
+    CR.arm_params[2].calib_b = 0.0f;
 
-    // 初始化非线性补偿系数（默认线性1:1）
-    for (int i = 0; i < 2; i++) {
-        for (int j = 0; j < 4; j++) {
-            CR.arm_params[i].calib_a[j] = 1.0f;
-            CR.arm_params[i].calib_b[j] = 0.0f;
-        }
+    CR.joint_space.r_bias = 0.8f;
+
+    for (int i = 0; i < 3; i++) {
         CR.arm_params[i].calib_max_ratio = 5.0f;
         CR.arm_params[i].calib_min_ratio = 0.3f;
     }
@@ -75,11 +89,52 @@ void CR_init(void)
     sensor_init();
 }
 
-// 用于控制喷管弯曲
+
+// 用于控制喷管弯曲（独立段控制，直接驱动某个段）
 uint8_t armBend(int seg, char direction, float val)
 {
-	CR.joint_space.target_theta[0] = direction == 1 ? val : -val;
-    return armBend_edit(seg, direction, val, 0, 0, 0, 0, (float[3]){20, 20, 20});
+    return segBend(seg, direction, val);
+}
+
+// 总角度弯曲（分段式分配，每段独占20°输入后触限）
+uint8_t armBend_total(char direction, float total_val)
+{
+    if (total_val < 0 || total_val > TOTAL_ANGLE_LIMIT) return 1;
+
+    float rem = total_val;
+    float seg_input[3] = {0};
+
+    for (int i = 0; i < 3 && rem > 0; i++) {
+        float take = (rem > SEG_INPUT_LIMIT) ? SEG_INPUT_LIMIT : rem;
+        seg_input[i] = take;
+        rem -= take;
+    }
+
+    CR.joint_space.ref_theta[0] = seg_input[0];
+    CR.joint_space.ref_theta[1] = seg_input[1];
+    CR.joint_space.ref_theta[2] = seg_input[2];
+
+    // 一次性计算三段补偿+驱动（避免 segBend 分三次驱动的机械抖动）
+    for (int i = 0; i < 3; i++) {
+        if (seg_input[i] > 0) {
+            CR.joint_space.model_theta[i] = tendonCompensation(i + 1, seg_input[i]);
+        } else {
+            CR.joint_space.model_theta[i] = 0;
+        }
+    }
+    // 根据方向设 phi（仅段1方向有意义，段2/段3沿袭）
+    float phi = 0;
+    switch (direction) {
+        case 'u': phi = 0; break;
+        case 'r': phi = pi / 2; break;
+        case 'd': phi = pi; break;
+        case 'l': phi = 3 * pi / 2; break;
+        default: return 1;
+    }
+    CR.joint_space.model_phi = phi;
+    deltaL_update();
+    motor_sync_control(MOTOR_NUM - 1, 0, CR.joint_space.deltaL);
+    return 0;
 }
 
 void deltaL_update(void)
@@ -92,16 +147,16 @@ void deltaL_update(void)
         cur_pos[i] = CR.joint_space.deltaL[i];
     }
 
-    calculate_L(CR.parameter.r, CR.joint_space.target_theta,CR.joint_space.target_phi,CR.joint_space.deltaL);
+    calculate_L(CR.parameter.r, CR.joint_space.model_theta, CR.joint_space.model_phi, CR.joint_space.deltaL);
 }
 
 void auto_straight(void)
 {
     for (int i = 0; i < 3; i++)
     {
-        CR.joint_space.target_theta[i] = 0;
+        CR.joint_space.model_theta[i] = 0;
     }
-    CR.joint_space.target_phi = 0;
+    CR.joint_space.model_phi = 0;
 	CR.operation_space.scale = 0;
     deltaL_update();
     motor_sync_control(MOTOR_NUM, 0, CR.joint_space.deltaL);
@@ -110,35 +165,50 @@ void auto_straight(void)
 /**
  * @brief 臂体360度旋转（保持弯曲角度不变，phi从0旋转到2π）
  * @param theta_deg 弯曲角度（度），旋转过程中保持不变
- * @param step_deg  每步旋转角度（度），默认30度=12步完成一圈
+ * @param step_deg  每步旋转角度（度），默认1度=360步完成一圈
+ *
+ * 修正说明：原实现硬编码 theta/3/2/1 不走补偿，导致实际角度不准。
+ * 修正后走 RATIO 分配 + tendonCompensation，锁定补偿后的 model_theta，
+ * 再 sweep phi。三段补偿值一次性算完、一次性驱动，避免 armBend_total
+ * 内部 segBend 分三次驱动的机械抖动。
  */
 void armRotate(float theta_deg, float step_deg)
 {
     if (theta_deg < 0) theta_deg = 0;
     if (theta_deg > 90) theta_deg = 90;
-    if (step_deg <= 0) step_deg = 30.0f;
+    if (step_deg <= 0) step_deg = 1.0f;
 
-    float theta_rad = theta_deg * pi / 180.0f;
-
-    // 1. 先弯曲到指定角度（phi=0），等待到位
-    CR.joint_space.target_theta[0] = theta_rad / 3;
-    CR.joint_space.target_theta[1] = theta_rad / 2;
-    CR.joint_space.target_theta[2] = theta_rad;
-    CR.joint_space.target_phi = 0;
-    deltaL_update();
-    motor_sync_control(9, 0, CR.joint_space.deltaL);
-    osDelay(4000);  // 等待弯曲到位（位移大，需要较长时间）
-
-    // 2. 弯曲到位后，逐步旋转 phi（每步只改变旋转角，位移变化小，延时可以短）
-    for (float phi_deg = step_deg; phi_deg <= 360.0f; phi_deg += step_deg)
-    {
-        CR.joint_space.target_phi = phi_deg * pi / 180.0f;
-        deltaL_update();
-        motor_sync_control(9, 0, CR.joint_space.deltaL);
-        osDelay(1000);  // 旋转步进，位移变化小
+    // 1. 分段式分配 + 一次性 tendonCompensation + 一次性驱动
+    float rem = theta_deg;
+    float seg_input[3] = {0};
+    for (int i = 0; i < 3 && rem > 0; i++) {
+        float take = (rem > SEG_INPUT_LIMIT) ? SEG_INPUT_LIMIT : rem;
+        seg_input[i] = take;
+        rem -= take;
     }
 
-    // 3. 最后归零（从弯曲状态回到零位，位移大，需要较长时间）
+    for (int i = 0; i < 3; i++) {
+        if (seg_input[i] > 0) {
+            CR.joint_space.model_theta[i] = tendonCompensation(i + 1, seg_input[i]);
+        } else {
+            CR.joint_space.model_theta[i] = 0;
+        }
+    }
+    CR.joint_space.model_phi = 0;
+    deltaL_update();
+    motor_sync_control(9, 0, CR.joint_space.deltaL);
+    osDelay(4000);  // 等待弯曲到位
+
+    // 2. 锁定 model_theta，逐步旋转 phi
+    for (float phi_deg = step_deg; phi_deg <= 360.0f; phi_deg += step_deg)
+    {
+        CR.joint_space.model_phi = phi_deg * pi / 180.0f;
+        deltaL_update();
+        motor_sync_control(9, 0, CR.joint_space.deltaL);
+        osDelay(500);
+    }
+
+    // 3. 归零
     auto_straight();
     osDelay(5000);
 }
@@ -152,10 +222,10 @@ void armRotate(float theta_deg, float step_deg)
  */
 void action_group_demo(void)
 {
-    const float angle = 30.0f;  // 弯曲角度（度）
+    const float angle = 10.0f;  // 弯曲角度（度）
 
-    // 1. 360度旋转（保持30度弯曲）
-    armRotate(30.0f, 30.0f);
+    // 1. 360度旋转（保持3度弯曲）
+    armRotate(10.0f, 2.0f);
 
     // 2. 向上弯曲
     armBend(1, 'u', angle);
@@ -174,20 +244,20 @@ void action_group_demo(void)
     osDelay(2000);
 
     // 6. 向左弯曲
-    armBend(1, 'l', angle);
-    osDelay(3000);
+    // armBend(1, 'l', angle);
+    // osDelay(3000);
 
     // 7. 回零
-    auto_straight();
-    osDelay(2000);
+    // auto_straight();
+    // osDelay(2000);
 
     // 8. 向右弯曲
-    armBend(1, 'r', angle);
-    osDelay(3000);
+    // armBend(1, 'r', angle);
+    // osDelay(3000);
 
     // 9. 回零
-    auto_straight();
-    osDelay(2000);
+    // auto_straight();
+    // osDelay(2000);
 }
 
 
@@ -212,56 +282,48 @@ void scale_squared(uint8_t direction, float val)
     motor_run(9, 10, target ,false);
 }
 
-uint8_t armBend_edit(int seg, char direction, float val, float g_u, float g_r, float g_d, float g_l, float seg_limit[3])
+uint8_t segBend(int seg, char direction, float val)
 {
-    // 节段、角度限制检查
-    if(seg != 1 && seg != 2) return 1;
-    if (seg == 1 && (val > seg_limit[0] || val < 0)) return 1;
-    if (seg == 2 && (val > seg_limit[1] || val < 0)) return 1;
-    if (seg == 2 && (val > seg_limit[2] || val < 0)) return 1;
-    float val_rad = val * pi / 180.0;
+    // 节段检查
+    if(seg < 1 || seg > 3) return 1;
+    if (val < 0) return 1;
 
-    // 使用肌腱补偿器
-    float compensated_angle_rad = 0;
+    // 使用肌腱补偿器: ref_angle → model_angle
+    float model_theta_rad = 0;
     if(tendon_comp) {
-       compensated_angle_rad = tendonCompensation(seg, direction, val);
+       model_theta_rad = tendonCompensation(seg, val);
     } else {
-        compensated_angle_rad = val * pi / 180.0;
+        model_theta_rad = val * pi / 180.0;
     }
 
-    // 检查补偿后的角度是否超出安全范围
-    float compensated_deg = compensated_angle_rad * 180.0 / pi;
-    float max_angle = (seg == 1) ? 120.0 : 60.0;  // 允许一定的超调，目前第一段臂体可以超调到120°左右
-    if (compensated_deg > max_angle) {
-        compensated_angle_rad = max_angle * pi / 180.0;
+    // 补偿后角度安全检查（不应触发，因补偿系数已按肌腱行程设计）
+    float model_theta_deg = model_theta_rad * 180.0 / pi;
+    // 限值：使用独立偏置系数0.07计算模型角度，和calculate_L的r_bias解耦
+    float tendon_limit_rad;
+    switch(seg) {
+        case 1: tendon_limit_rad = SEG_LENGTH1 / ((1.0f - 0.07f) * CR.parameter.r[0]); break;
+        case 2: tendon_limit_rad = SEG_LENGTH2 / ((1.0f - 0.07f) * CR.parameter.r[1]); break;
+        case 3: tendon_limit_rad = SEG_LENGTH3 / ((1.0f - 0.07f) * CR.parameter.r[2]); break;
+        default: tendon_limit_rad = SEG_LENGTH1 / ((1.0f - 0.07f) * CR.parameter.r[0]); break;
+    }
+    float tendon_limit_deg = tendon_limit_rad * 180.0 / pi;
+    if (model_theta_deg > tendon_limit_deg) {
+        model_theta_rad = tendon_limit_rad;
     }
 
-    // 设置 phi 角度，并进行简单的扭转补偿
+    // 设置 phi 角度
     float phi = 0;
     switch (direction)
     {
         case 'u': phi = 0; break;
-        case 'r': phi = pi / 2 - val_rad * g_r; break;
-        case 'd': phi = pi;; break;
-        case 'l': phi = 3 * pi / 2 + val_rad * g_l; break;
+        case 'r': phi = pi / 2; break;
+        case 'd': phi = pi; break;
+        case 'l': phi = 3 * pi / 2; break;
         default: return 1;
     }
-    float compensated_deg_abs = fabs(compensated_deg);
-    // 更新补偿后的关节角度
-    if (compensated_deg_abs <= 20)
-    {
-        CR.joint_space.target_theta[0] = compensated_angle_rad;
-    } else if (compensated_deg_abs <= 40 && compensated_deg_abs > 20)
-    {
-        CR.joint_space.target_theta[0] = compensated_angle_rad < 0 ? -20: 20;
-        CR.joint_space.target_theta[1] = compensated_angle_rad - CR.joint_space.target_theta[0];
-    } else
-    {
-        CR.joint_space.target_theta[0] = compensated_angle_rad < 0 ? -20: 20;
-        CR.joint_space.target_theta[1] = CR.joint_space.target_theta[0];
-        CR.joint_space.target_theta[2] = compensated_angle_rad - CR.joint_space.target_theta[0] - CR.joint_space.target_theta[1];
-    }
-    CR.joint_space.target_phi = phi;
+    // 补偿后的角度直接赋给对应段（独立段控制，无三段分配）
+    CR.joint_space.model_theta[seg-1] = model_theta_rad;
+    CR.joint_space.model_phi = phi;
     deltaL_update();
 
     // 校验 + 驱动步进电机

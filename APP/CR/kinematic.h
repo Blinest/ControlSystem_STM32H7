@@ -9,5 +9,5 @@
 **********************************************************/
 
 void calculate_L(float R[], float theta[], float phi, float deltaL[]);
-double tendonCompensation(int seg, char direction, float angle_deg);
+double tendonCompensation(int seg, float angle_deg);
 #endif

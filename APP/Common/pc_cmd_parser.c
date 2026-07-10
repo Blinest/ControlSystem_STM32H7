@@ -164,7 +164,7 @@ static void pc_cmd_parse_and_execute(void)
 									double val = (double)angle / 100;
                                     // 调用喷管弯曲控制函数
                                 	char dir = direction == 0? 'u': 'd';
-                                	armBend(1, dir, val);
+                                	armBend_total(dir, val);
 
                                 } else if (addr == 0xFD) {
                                     // 截面收缩指令: 地址=0xFD, 方向, 比例

@@ -65,7 +65,7 @@ uint16_t cmd_packer_pack_status_frame(uint8_t* frame, GlobalMotor motor[MOTOR_NU
     int16_t s_val = (int16_t)(lqts->operation_space.scale * 100);
     frame[idx++] = (s_val >> 8) & 0xFF; frame[idx++] = s_val & 0xFF;
 	// armbend
-	int16_t s_val2 = (int16_t)(lqts->joint_space.total_target_theta * 100);
+	int16_t s_val2 = (int16_t)(lqts->joint_space.total_model_theta * 100);
 	frame[idx++] = s_val2 >> 8; frame[idx++] = s_val2 & 0xFF;
     frame[idx++] = state; // 使用传入的 state
 
