@@ -88,33 +88,37 @@ void motor_run(int idx, float vel, float target, uint8_t snf) {
 	global_motor[idx].stepper_motor.target_vel = vel;
 	global_motor[idx].target_pos = angle;
 	global_motor[idx].stepper_motor.target_pos = target;
-	// 测试用
-	// float val = target;
-	// int int_part = (int)val;
-	// int frac_part = (int)((val - int_part) * 100 + 0.5);  // 保留两位小数，四舍五入
-	// if (frac_part < 0) frac_part = -frac_part;  // 小数部分取绝对值
-	// if (frac_part >= 100) {  // 处理进位，如 1.999 -> 2.00
-	// 	int_part += 1;
-	// 	frac_part -= 100;
-	// }
 
-	// char test[32];
-	// int len = snprintf(test, sizeof(test), "%d.%02d", int_part, frac_part);
-	// if (len > 0 && len < sizeof(test)) {
-	// 	Usart_SendString(&huart1, (uint8_t*)test, len);
-	// } else {
-	// 	Usart_SendString(&huart1, (uint8_t*)"ERR_FMT\r\n", 9);
-	// }
-	// 直通限速位置模式
-	// X_V2_Bypass_Pos_LV_Control(global_motor[idx].id, dir, vel_rpm_abs, angle_abs, 1, snf);
-	// X_V2_Pos_Control(global_motor[idx].id, dir, vel_rpm_abs, 0, clk, 1, snf);
-	// 加速度和减速度 (RPM/s)，根据实际系统调整
-	uint16_t acc = 500;   // 加速斜率
-	uint16_t dec = 500;   // 减速斜率
-
-	// 使用梯形曲线加减速位置模式
+	// 梯形加减速位置模式（用于正常弯曲，单次到位）
+	uint16_t acc = 500;
+	uint16_t dec = 500;
 	X_V2_Traj_Pos_Control(global_motor[idx].id, dir, acc, dec, vel_rpm_abs, angle_abs, 1, snf);
 
+}
+
+/**
+ * @brief 直通限速位置模式驱动（无加减速，用于画圆等连续步进场景）
+ * @param idx     电机索引
+ * @param vel     速度 mm/s
+ * @param target 目标位置（绝对位置）mm
+ * @param snf    同步标志
+ */
+void motor_run_bypass(int idx, float vel, float target, uint8_t snf) {
+
+	const float daocheng = global_motor[idx].stepper_motor.daocheng;
+	const int dir = target > 0 ? 0 : 1;
+	const float vel_rpm = vel * 60.0f / daocheng;
+	const uint16_t vel_rpm_abs = (uint16_t)(fabsf(vel_rpm) + 0.5f);
+	const float angle = 360.0f * target / daocheng;
+	float angle_abs = fabsf(angle);
+
+	global_motor[idx].target_vel = vel_rpm;
+	global_motor[idx].stepper_motor.target_vel = vel;
+	global_motor[idx].target_pos = angle;
+	global_motor[idx].stepper_motor.target_pos = target;
+
+	// 直通限速位置模式（无加减速）
+	X_V2_Bypass_Pos_LV_Control(global_motor[idx].id, dir, vel_rpm_abs, angle_abs, 1, snf);
 }
 
 /**
@@ -350,4 +354,55 @@ void motor_status_check(void)
     	X_V2_Read_Sys_Params(global_motor[i].id, S_VEL);
     	osDelay(1); // 延时等待响应
     }
+}
+
+/**
+ * @brief 多电机同步控制 - 直通限速模式（无加减速，用于画圆等连续步进）
+ * @param count     电机数量
+ * @param start_idx 电机起始索引
+ * @param distance  电机位移数组 mm
+ */
+void motor_sync_bypass(uint8_t count, uint8_t start_idx, float distance[])
+{
+	float max_distance = 0;
+
+	for (int i = start_idx; i < count; i++)
+	{
+		float abs_distance = fabsf(distance[i]);
+		max_distance = fmax(max_distance, abs_distance);
+	}
+
+	for (int i = start_idx; i < start_idx + count; i++)
+	{
+		float abs_distance = fabsf(distance[i-start_idx]);
+		float ratio = (max_distance > 0) ? (abs_distance / max_distance) : 0;
+		float vel_max = global_motor[i].vel_max / 60.0f * global_motor[i].stepper_motor.daocheng;
+		float calculated_speed = ratio * vel_max;
+		uint16_t speed = (calculated_speed == 0) ? (uint16_t)vel_max : (uint16_t)calculated_speed;
+
+		global_motor[i].target_pos = distance[i-start_idx];
+		global_motor[i].stepper_motor.target_vel = speed;
+	}
+
+	for (int i = start_idx; i < start_idx + count; i++)
+	{
+		motor_run_bypass(i, global_motor[i].stepper_motor.target_vel,
+		                 global_motor[i].target_pos, true);
+
+		uint32_t wait = 50000;
+		while (HAL_FDCAN_GetTxFifoFreeLevel(&hfdcan1) < 3 && wait-- > 0) {
+			for (volatile int d = 0; d < 48; d++);
+		}
+		if (wait == 0) {
+			HAL_FDCAN_Stop(&hfdcan1);
+			osDelay(20);
+			HAL_FDCAN_Start(&hfdcan1);
+			HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_RX_FIFO0_NEW_MESSAGE, 0);
+			HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_TX_COMPLETE, 0);
+		}
+		osDelay(2);
+	}
+
+	// 触发同步控制 —— 不设额外延时
+	X_V2_Synchronous_motion(0);
 }

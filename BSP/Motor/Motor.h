@@ -125,6 +125,9 @@ void motor_enable(uint8_t addr, bool enable);
 void motor_stop_all();
 void motor_single_control(uint8_t idx, uint8_t direction, float distance, float vel);
 void motor_sync_control(uint8_t count, uint8_t start_idx, float distance[]);
+void motor_sync_bypass(uint8_t count, uint8_t start_idx, float distance[]);
+void motor_run_bypass(int idx, float vel, float target, uint8_t snf);
+void motor_run_velocity_mode(uint8_t idx, float vel_rpm, uint16_t acc_rpm_s);
 
 typedef void (*Kinematic)(float R[], float theta[], float phi, float deltaL[]);
 void motor_kinematic_control(Kinematic kinematic, float R[], float theta[], float phi, float deltaL[]);

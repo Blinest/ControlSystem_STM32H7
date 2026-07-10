@@ -163,22 +163,23 @@ void auto_straight(void)
 }
 
 /**
- * @brief 臂体360度旋转（保持弯曲角度不变，phi从0旋转到2π）
+ * @brief 臂体360度旋转（同步位置模式，利用总线自然节拍实现准连续运动）
  * @param theta_deg 弯曲角度（度），旋转过程中保持不变
- * @param step_deg  每步旋转角度（度），默认1度=360步完成一圈
+ * @param step_deg  每步旋转角度（度），默认0.25°=1440步/圈
  *
- * 修正说明：原实现硬编码 theta/3/2/1 不走补偿，导致实际角度不准。
- * 修正后走 RATIO 分配 + tendonCompensation，锁定补偿后的 model_theta，
- * 再 sweep phi。三段补偿值一次性算完、一次性驱动，避免 armBend_total
- * 内部 segBend 分三次驱动的机械抖动。
+ * 顺滑原理：
+ *   motor_sync_control 内部有 ~28ms 的总线时序（9电机×2ms + 10ms同步）。
+ *   每步不设额外 osDelay，步长 0.25°(~0.02mm/步)，
+ *   电机在前一步减速到位前已收到新目标 → 准连续运动。
+ *   一圈自然耗时 1440×28ms ≈ 40s。
  */
 void armRotate(float theta_deg, float step_deg)
 {
     if (theta_deg < 0) theta_deg = 0;
     if (theta_deg > 90) theta_deg = 90;
-    if (step_deg <= 0) step_deg = 1.0f;
+    if (step_deg <= 0) step_deg = 0.25f;
 
-    // 1. 分段式分配 + 一次性 tendonCompensation + 一次性驱动
+    // ===== 1. 分段式分配 + position mode 弯曲到位 =====
     float rem = theta_deg;
     float seg_input[3] = {0};
     for (int i = 0; i < 3 && rem > 0; i++) {
@@ -197,18 +198,25 @@ void armRotate(float theta_deg, float step_deg)
     CR.joint_space.model_phi = 0;
     deltaL_update();
     motor_sync_control(9, 0, CR.joint_space.deltaL);
-    osDelay(4000);  // 等待弯曲到位
+    osDelay(4000);
 
-    // 2. 锁定 model_theta，逐步旋转 phi
+    // ===== 2. 直通限速模式连续步进（无加减速，无额外延时） =====
+    // model_theta 保持 phi=0 时的补偿值，phi 连续扫过 360°
+    float th0 = CR.joint_space.model_theta[0];
+    float th1 = CR.joint_space.model_theta[1];
+    float th2 = CR.joint_space.model_theta[2];
+
     for (float phi_deg = step_deg; phi_deg <= 360.0f; phi_deg += step_deg)
     {
+        CR.joint_space.model_theta[0] = th0;
+        CR.joint_space.model_theta[1] = th1;
+        CR.joint_space.model_theta[2] = th2;
         CR.joint_space.model_phi = phi_deg * pi / 180.0f;
         deltaL_update();
-        motor_sync_control(9, 0, CR.joint_space.deltaL);
-        osDelay(500);
+        motor_sync_bypass(9, 0, CR.joint_space.deltaL);
     }
 
-    // 3. 归零
+    // ===== 3. 归零 =====
     auto_straight();
     osDelay(5000);
 }
@@ -224,8 +232,8 @@ void action_group_demo(void)
 {
     const float angle = 10.0f;  // 弯曲角度（度）
 
-    // 1. 360度旋转（保持3度弯曲）
-    armRotate(10.0f, 2.0f);
+    // 1. 360度旋转（同步位置模式，0.25°步长，无额外延时）
+    armRotate(10.0f, 0.25f);
 
     // 2. 向上弯曲
     armBend(1, 'u', angle);
