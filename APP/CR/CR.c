@@ -179,6 +179,9 @@ void armRotate(float theta_deg, float step_deg)
     if (theta_deg > 90) theta_deg = 90;
     if (step_deg <= 0) step_deg = 0.25f;
 
+    // 重置 r_bias 基线值
+    CR.joint_space.r_bias = 0.8f;
+
     // ===== 1. 分段式分配 + position mode 弯曲到位 =====
     float rem = theta_deg;
     float seg_input[3] = {0};
@@ -201,16 +204,39 @@ void armRotate(float theta_deg, float step_deg)
     osDelay(4000);
 
     // ===== 2. 直通限速模式连续步进（无加减速，无额外延时） =====
-    // model_theta 保持 phi=0 时的补偿值，phi 连续扫过 360°
+    // 画圆时各phi有效总位移不同（R_BIAS导致三组电机不对称），
     float th0 = CR.joint_space.model_theta[0];
     float th1 = CR.joint_space.model_theta[1];
     float th2 = CR.joint_space.model_theta[2];
 
     for (float phi_deg = step_deg; phi_deg <= 360.0f; phi_deg += step_deg)
     {
-        CR.joint_space.model_theta[0] = th0;
-        CR.joint_space.model_theta[1] = th1;
-        CR.joint_space.model_theta[2] = th2;
+        // 增强补偿：超高斯平坦区（100°~260°恒定，平滑滚降）
+        // 1. boost: 150%, 超高斯n=6, sigma=50 → 100°~260°平坦, 0°~80°渐降
+        //    避免高斯峰形导致135°处boost=1.8但180°处仅0.19的落差
+        // 2. asym: +40%, 超高斯n=6, sigma=50, 仅seg2/seg3 (段1的M2 25mm限)
+        // 3. 动态r_bias: 135°/225°+180°双重降低至0.0
+        // 4. seg_shift: 20%段1→seg2/seg3, 超高斯n=6, sigma=50
+        float phi_rad = phi_deg * pi / 180.0f;
+        float d135 = fabsf(phi_deg - 135.0f);
+        float d225 = fabsf(phi_deg - 225.0f);
+        float dmin = fminf(d135, d225);
+        float d180 = fabsf(phi_deg - 180.0f);
+        float d_wide = fminf(dmin, d180);
+        // 超高斯: exp(-(d/sigma)^6) — 平坦峰顶
+        float boost_g = expf(-powf(d_wide / 50.0f, 6.0f));
+        float boost = 1.80f * boost_g;
+        float asym = 0.40f * boost_g;
+        float b1 = 1.0f * expf(-(dmin * dmin) / (40.0f * 40.0f));
+        float b2 = 1.0f * expf(-(d180 * d180) / (30.0f * 30.0f));
+        float b = fminf(b1 + b2, 1.0f);
+        float seg_shift = 0.20f * expf(-powf(d_wide / 50.0f, 6.0f));
+        CR.joint_space.r_bias = 0.8f - 0.8f * b;
+        float th0_comp = th0 * (1.0f + boost);
+        float th_add = th0_comp * seg_shift;
+        CR.joint_space.model_theta[0] = th0_comp - th_add;
+        CR.joint_space.model_theta[1] = th1 * (1.0f + boost + asym * 0.75f) + th_add * 0.75f;
+        CR.joint_space.model_theta[2] = th2 * (1.0f + boost + asym * 0.25f) + th_add * 0.25f;
         CR.joint_space.model_phi = phi_deg * pi / 180.0f;
         deltaL_update();
         motor_sync_bypass(9, 0, CR.joint_space.deltaL);
