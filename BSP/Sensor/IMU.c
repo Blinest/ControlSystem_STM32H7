@@ -11,10 +11,19 @@
 
 static volatile char s_cDataUpdate = 0, s_cCmd = 0xff;
 
+// 空回调：上层采用同步读取 sReg[] 的方式获取数据，
+// 无需回调做额外处理，但必须注册，否则 WitSerialDataIn 会因回调为空而直接丢弃数据。
+static void IMU_RegUpdateCb(uint32_t uiReg, uint32_t uiRegNum)
+{
+	(void)uiReg;
+	(void)uiRegNum;
+}
+
 void IMU_Init(void)
 {
 	WitInit(WIT_PROTOCOL_MODBUS, 0x50);
 	WitSerialWriteRegister(SensorUartSend);
+	WitRegisterCallBack(IMU_RegUpdateCb);
 }
 
 void IMU_single_read(uint8_t sensor_id)
