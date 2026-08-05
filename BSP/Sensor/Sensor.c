@@ -10,7 +10,6 @@
  */
 
 #include "Sensor.h"
-#include "mpu9250.h"
 #include <stdio.h>
 #include "IMU.h"
 

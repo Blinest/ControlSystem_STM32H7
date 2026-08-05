@@ -88,24 +88,12 @@ typedef struct
 	float current_acc; //mm/s^2
 } StepperMotor;
 
-typedef struct ServoMotor
-{
-	uint8_t daocheng;
-	uint8_t xifen;
-	float step_angle;
-	float current_pos; // mm
-	float target_pos; // mm
-	float current_vel; // mm/s
-	float target_vel; // mm/s
-} ServoMotor;
-
 // ==================== 全局电机结构体 ====================
 typedef struct GlobalMotor
 {
 	int id;
 	bool state;
 	StepperMotor stepper_motor;
-	ServoMotor servo_motor;
 	uint8_t last_response_time;
 	uint8_t timeout_threshold;
 	float current_pos; // rad

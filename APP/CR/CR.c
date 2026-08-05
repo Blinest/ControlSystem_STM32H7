@@ -211,29 +211,30 @@ void armRotate(float theta_deg, float step_deg)
 
     for (float phi_deg = step_deg; phi_deg <= 360.0f; phi_deg += step_deg)
     {
-        // 增强补偿：超高斯平坦区（100°~260°恒定，平滑滚降）
-        // 1. boost: 150%, 超高斯n=6, sigma=50 → 100°~260°平坦, 0°~80°渐降
-        //    避免高斯峰形导致135°处boost=1.8但180°处仅0.19的落差
-        // 2. asym: +40%, 超高斯n=6, sigma=50, 仅seg2/seg3 (段1的M2 25mm限)
-        // 3. 动态r_bias: 135°/225°+180°双重降低至0.0
-        // 4. seg_shift: 20%段1→seg2/seg3, 超高斯n=6, sigma=50
+        // 补偿策略：双高斯峰(135°/225°) + 窄seg_shift(180°保护M2)
+        // boost/asym: 双高斯(135°+225°), sigma=45 → 180°处=2×exp(-1)=0.736
+        //   135°: exp(0)=1.0+exp(-4)=1.018 → 峰值≈1.8×1.018=1.83
+        //   180°: exp(-1)+exp(-1)=0.736 → 峰值≈1.8×0.736=1.32
+        //   自然形成135°/225°高、180°较低, 过渡平滑
+        // seg_shift: 窄高斯(180°, sigma=20)仅保护M2不超25mm限
         float phi_rad = phi_deg * pi / 180.0f;
         float d135 = fabsf(phi_deg - 135.0f);
         float d225 = fabsf(phi_deg - 225.0f);
         float dmin = fminf(d135, d225);
         float d180 = fabsf(phi_deg - 180.0f);
-        float d_wide = fminf(dmin, d180);
-        // 超高斯: exp(-(d/sigma)^6) — 平坦峰顶
-        float boost_g = expf(-powf(d_wide / 50.0f, 6.0f));
-        float boost = 1.80f * boost_g;
-        float asym = 0.40f * boost_g;
-        float b1 = 1.0f * expf(-(dmin * dmin) / (40.0f * 40.0f));
-        float b2 = 1.0f * expf(-(d180 * d180) / (30.0f * 30.0f));
-        float b = fminf(b1 + b2, 1.0f);
-        float seg_shift = 0.20f * expf(-powf(d_wide / 50.0f, 6.0f));
-        CR.joint_space.r_bias = 0.8f - 0.8f * b;
-        float th0_comp = th0 * (1.0f + boost);
-        float th_add = th0_comp * seg_shift;
+        // 双高斯: 135°+225°两个峰
+        float g_dual = expf(-(d135 * d135) / (35.0f * 35.0f))
+                     + expf(-(d225 * d225) / (35.0f * 35.0f));
+        float boost = 3.00f * g_dual;
+        float asym = 0.60f * g_dual;
+        // r_bias: 只在135/225±45°内降低(sigma=35)，180°恢复至0.8
+        float b = expf(-(dmin * dmin) / (35.0f * 35.0f));
+        CR.joint_space.r_bias = 0.8f - 0.5f * b;  // 0.8→0.3 最低
+        // mid_band平滑过渡: 180°附近降低段1的boost，转向段2/段3分担
+        float mid_band = 0.5f * (tanhf((phi_deg - 120.0f) / 10.0f)
+                               - tanhf((phi_deg - 240.0f) / 10.0f));
+        float th0_comp = th0 * (1.0f + boost * (1.0f - 0.75f * mid_band));
+        float th_add = th0_comp * (0.20f * mid_band);
         CR.joint_space.model_theta[0] = th0_comp - th_add;
         CR.joint_space.model_theta[1] = th1 * (1.0f + boost + asym * 0.75f) + th_add * 0.75f;
         CR.joint_space.model_theta[2] = th2 * (1.0f + boost + asym * 0.25f) + th_add * 0.25f;

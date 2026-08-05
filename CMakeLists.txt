@@ -45,9 +45,6 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         # Add user sources here
-        BSP/Motor/SCSCL.c
-        BSP/Motor/SCS.c
-        BSP/Motor/SCSerial.c
         APP/Common/XV2_cmd_parser.c
         BSP/Motor/X_V2.c
         BSP/Sensor/WT_IMU.c
@@ -61,7 +58,6 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         App/Common/cmd_packer.c
         App/CR/CR.c
         BSP/Motor/Motor.c
-        BSP/Motor/servo.c
         BSP/Sensor/IMU.c
 )
 

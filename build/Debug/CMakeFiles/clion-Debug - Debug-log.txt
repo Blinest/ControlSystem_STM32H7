@@ -1,0 +1,19 @@
+"D:\6_application\6_9_Program\6_9_1_IDE\CLion 2025.3.1\bin\cmake\win\x64\bin\cmake.exe" -DCMAKE_BUILD_TYPE=Debug --preset Debug -S D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7 -B D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\build\Debug
+-- The C compiler identification is GNU 13.3.1
+-- The CXX compiler identification is GNU 13.3.1
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: D:/7_code/DevEnv/DevEnv/GNU-tools-for-STM32/bin/arm-none-eabi-gcc.exe - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: D:/7_code/DevEnv/DevEnv/GNU-tools-for-STM32/bin/arm-none-eabi-g++.exe - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+Build type: Debug
+-- The ASM compiler identification is GNU
+-- Found assembler: D:/7_code/DevEnv/DevEnv/GNU-tools-for-STM32/bin/arm-none-eabi-gcc.exe
+-- Configuring done (45.3s)
+-- Generating done (1.0s)
+-- Build files have been written to: D:/BaiduSyncdisk/2_work/1_2_management/1_2_2_test/ControlSystem_STM32H7/build/Debug
