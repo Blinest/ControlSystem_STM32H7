@@ -1,6 +1,3 @@
-//
-// Created by blin on 2026/3/7.
-//
 /**
 * @file motor.c
  * @brief 电机指令处理模块
@@ -21,7 +18,6 @@
 #include "fdcan.h"
 // #include "Emm_V5.h"
 #include "X_V2.h"
-#include "CR/kinematic.h"
 
 // 创建电机与电机反馈数据结构体
 MotorFeedback motor_feedback[MOTOR_NUM];
@@ -34,12 +30,12 @@ void motor_init()
 	for (int i = 0; i < MOTOR_NUM; i++)
 	{
 		global_motor[i].id = MOTOR_ID + i;
-		global_motor[i].stepper_motor.daocheng = 12; // 根据丝杠导程设置，9mm
+		global_motor[i].stepper_motor.daocheng = 12; // 根据丝杠导程设置，12mm
 		global_motor[i].stepper_motor.xifen = 256; // 平滑控制
 		global_motor[i].stepper_motor.step_angle = 1.8; // 步距角
 		global_motor[i].stepper_motor.target_vel = 10; // 如果要完成指标，至少是 10mm/s
 		global_motor[i].stepper_motor.current_vel = 10;
-		global_motor[i].vel_max = 120; // 满足指标要求
+		global_motor[i].vel_max = 100; // 满足指标要求
 		global_motor[i].current_acc = 0; // 由于位移量较小，为提高响应速度，直接启动，不做加减速处理 (0-255)
 	}
 }
@@ -66,9 +62,7 @@ void motor_enable(uint8_t addr,bool enable)
 void motor_run(int idx, float vel, float target, uint8_t snf) {
 
 	// ==================== 执行控制 ====================
-	const uint16_t xifen = global_motor[idx].stepper_motor.xifen;
 	const float daocheng = global_motor[idx].stepper_motor.daocheng;
-	const double step_angle = global_motor[idx].stepper_motor.step_angle;
 	// 方向确定
 	const int dir = target > 0 ? 0 : 1;
 
@@ -80,9 +74,6 @@ void motor_run(int idx, float vel, float target, uint8_t snf) {
 	const float angle = 360.0f  * target / daocheng;
 	float angle_abs = fabsf(angle);
 
-	// 脉冲数计算
-	const uint32_t clk = (uint32_t)(angle_abs / step_angle * xifen);
-
 	// 更新电机状态
 	global_motor[idx].target_vel = vel_rpm;
 	global_motor[idx].stepper_motor.target_vel = vel;
@@ -90,8 +81,8 @@ void motor_run(int idx, float vel, float target, uint8_t snf) {
 	global_motor[idx].stepper_motor.target_pos = target;
 
 	// 梯形加减速位置模式（用于正常弯曲，单次到位）
-	uint16_t acc = 500;
-	uint16_t dec = 500;
+	uint16_t acc = 200;
+	uint16_t dec = 200;
 	X_V2_Traj_Pos_Control(global_motor[idx].id, dir, acc, dec, vel_rpm_abs, angle_abs, 1, snf);
 
 }
@@ -122,18 +113,26 @@ void motor_run_bypass(int idx, float vel, float target, uint8_t snf) {
 }
 
 /**
- * @brief 速度模式驱动电机（用于外部位置环）
- * @param idx       电机索引
- * @param vel_rpm   目标速度 (RPM)，可为正或负，内部自动处理方向
- * @param acc_rpm_s 加速度 (RPM/s)
+ * 连续速度模式驱动（画圆等连续旋转场景，无位置步进）
+ * @param idx  电机索引
+ * @param vel  速度 mm/s（正=收紧/推，负=放松/拉，0=停）
+ * @param snf  同步标志
+ *
+ * 内部把 mm/s 换算成 RPM 下发 X_V2_Vel_Control（acc 用较高值，让速度矢量
+ * 平滑连续变化，避免每次微调都触发驱动器内部启停造成顿挫）。
  */
-void motor_run_velocity_mode(uint8_t idx, float vel_rpm, uint16_t acc_rpm_s) {
-	uint8_t dir = (vel_rpm >= 0) ? 0 : 1;
-	float abs_vel = fabsf(vel_rpm);
-	// 使用限电流版本可选
-	X_V2_Vel_Control(global_motor[idx].id, dir, acc_rpm_s, abs_vel, false);
-	// 记录当前目标速度
-	global_motor[idx].target_vel = vel_rpm;
+void motor_run_velocity(int idx, float vel, uint8_t snf) {
+
+	const float daocheng = global_motor[idx].stepper_motor.daocheng;
+	const uint8_t dir = vel >= 0.0f ? 0 : 1;          // 0=CW, 1=CCW
+	const float vel_rpm = fabsf(vel) * 60.0f / daocheng;
+	const uint16_t vel_rpm_abs = (uint16_t)(vel_rpm + 0.5f);
+	const uint16_t acc = 1000;                          // RPM/s，斜坡足够快
+
+	global_motor[idx].target_vel = (vel >= 0.0f) ? vel_rpm : -vel_rpm;
+	global_motor[idx].stepper_motor.target_vel = vel;
+
+	X_V2_Vel_Control(global_motor[idx].id, dir, acc, (float)vel_rpm_abs, snf);
 }
 
 /**
@@ -217,6 +216,11 @@ void motor_sync_control(uint8_t count, uint8_t start_idx, float distance[])
 
 		// 计算当前步进电机速度
 		float calculated_speed = ratio * vel_max;
+		// 速度下限：位移非零但占比极小（旋转过零点附近侧向肌腱）时，速度会被
+		// uint16 截断为 0，造成"非零位置+零速度"到位门卡死；加最小速度保证到达。
+		if (calculated_speed > 0.0f && calculated_speed < 1.0f) {
+			calculated_speed = 1.0f;            // 最小速度 1 mm/s
+		}
 		speed[i] =  calculated_speed == 0? (uint16_t)vel_max: (uint16_t)calculated_speed;
 		// 储存目标电机位移与速度
 		global_motor[i].target_pos = distance[i-start_idx];
@@ -251,91 +255,6 @@ void motor_sync_control(uint8_t count, uint8_t start_idx, float distance[])
 	// 触发同步控制
 	X_V2_Synchronous_motion(0);
 	osDelay(10);
-}
-
-/**
- *
- * @param kinematic : 运动学函数，接入不同运动学模型
- * @param R : 半径 mm
- * @param theta : 弯曲角 rad
- * @param phi : 旋转角 rad
- * @param deltaL : 变化长度 mm
- */
-void motor_kinematic_control (Kinematic kinematic, float R[], float theta[], float phi, float deltaL[])
-{
-	// ==================== 计算肌腱长度变化 ====================
-	kinematic(R, theta, phi, deltaL);
-
-	// ==================== 检查计算结果 ====================
-	for (int i = 0; i < MOTOR_NUM; i++) {
-		if (isnan(deltaL[i]) || isinf(deltaL[i])) {
-
-			deltaL[i] = 0.0f; // 设为0防止错误传播
-		}
-	}
-
-	// ==================== 执行同步控制 ====================
-	motor_sync_control(9, MOTOR_ID, deltaL);
-}
-
-/**
- * @brief 将步进电机的角度信息转换为位移信息
- * @param motor_index: 电机索引
- * @param angle: 角度信息（单位：度）
- * @return 位移信息（单位：mm）
- */
-float motor_angle_to_displacement(uint8_t motor_index, float angle)
-{
-    if (motor_index >= MOTOR_NUM) {
-        return 0.0f;
-    }
-
-    StepperMotor *stepper = &global_motor[motor_index].stepper_motor;
-
-    // 计算每转的步数
-    float steps_per_rev = 360.0f / stepper->step_angle * stepper->xifen;
-
-    // 计算角度对应的步数
-    float steps = angle / 360.0f * steps_per_rev;
-
-    // 计算位移：步数 * 导程 / 每转步数
-    float displacement = steps * stepper -> daocheng / (360.0f / stepper->step_angle * stepper->xifen);
-
-    // 更新电机结构体中的位置信息
-    stepper -> current_pos = displacement;
-    global_motor[motor_index].current_pos = angle * 180.0f / 3.1415926f; // 转换为弧度并存储
-
-    return displacement;
-}
-
-/**
- * @brief 将位移信息转换为步进电机的角度信息
- * @param motor_index: 电机索引
- * @param displacement: 位移信息（单位：mm）
- * @return 角度信息（单位：度）
- */
-float motor_displacement_to_angle(uint8_t motor_index, float displacement)
-{
-    if (motor_index >= MOTOR_NUM) {
-        return 0.0f;
-    }
-
-    StepperMotor *stepper = &global_motor[motor_index].stepper_motor;
-
-    // 计算每转的步数
-    float steps_per_rev = 360.0f / stepper->step_angle * stepper->xifen;
-
-    // 计算位移对应的步数
-    float steps = displacement * steps_per_rev / stepper->daocheng;
-
-    // 计算角度：步数 / 每转步数 * 360度
-    float angle = steps / steps_per_rev * 360.0f;
-
-    // 更新电机结构体中的位置信息
-    stepper->current_pos = displacement;
-    global_motor[motor_index].current_pos = angle * 180.0f / 3.1415926f; // 转换为弧度并存储
-
-    return angle;
 }
 
 // ==================== 电机状态定期检查 ====================
@@ -378,6 +297,10 @@ void motor_sync_bypass(uint8_t count, uint8_t start_idx, float distance[])
 		float ratio = (max_distance > 0) ? (abs_distance / max_distance) : 0;
 		float vel_max = global_motor[i].vel_max / 60.0f * global_motor[i].stepper_motor.daocheng;
 		float calculated_speed = ratio * vel_max;
+		// 速度下限：同上，防止位移极小被截断为 0 导致电机卡死
+		if (calculated_speed > 0.0f && calculated_speed < 1.0f) {
+			calculated_speed = 1.0f;            // 最小速度 1 mm/s
+		}
 		uint16_t speed = (calculated_speed == 0) ? (uint16_t)vel_max : (uint16_t)calculated_speed;
 
 		global_motor[i].target_pos = distance[i-start_idx];

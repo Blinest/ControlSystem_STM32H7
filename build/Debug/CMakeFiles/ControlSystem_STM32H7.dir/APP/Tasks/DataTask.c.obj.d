@@ -70,17 +70,15 @@ CMakeFiles/ControlSystem_STM32H7.dir/App/Tasks/DataTask.c.obj: \
  D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\BSP/Motor/Motor.h \
  D:\7_code\DevEnv\DevEnv\GNU-tools-for-STM32\bin\../lib/gcc/arm-none-eabi/13.3.1/include/stdbool.h \
  D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\BSP/Sensor/Sensor.h \
- D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\App/Common/sensor_cmd_parser.h \
  D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\App/Common/cmd_packer.h \
  D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\App/CR/CR.h \
  D:\7_code\DevEnv\DevEnv\GNU-tools-for-STM32\bin\../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/include/string.h \
  D:\7_code\DevEnv\DevEnv\GNU-tools-for-STM32\bin\../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/include/sys/_locale.h \
  D:\7_code\DevEnv\DevEnv\GNU-tools-for-STM32\bin\../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/include/strings.h \
  D:\7_code\DevEnv\DevEnv\GNU-tools-for-STM32\bin\../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/include/sys/string.h \
+ D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\App/CR/Control.h \
  D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\App/Common/can_driver.h \
  D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\cmake\stm32cubemx\..\..\Core\Inc/main.h \
  D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\cmake\stm32cubemx\..\..\Core\Inc/fdcan.h \
- D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\cmake\stm32cubemx\..\..\Middlewares\Third_Party\FreeRTOS\Source\CMSIS_RTOS_V2/cmsis_os.h \
- D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\cmake\stm32cubemx\..\..\Middlewares\Third_Party\FreeRTOS\Source\CMSIS_RTOS_V2/cmsis_os2.h \
  D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\BSP/Sensor/WT_IMU.h \
  D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\BSP/Sensor/REG.h

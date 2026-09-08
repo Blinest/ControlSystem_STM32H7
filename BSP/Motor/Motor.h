@@ -1,18 +1,9 @@
-//
-// Created by blin on 2026/3/7.
-//
-
 #ifndef CONTROLSYSTEM_MOTOR_H
 #define CONTROLSYSTEM_MOTOR_H
 #include "stdint.h"
 
 #include <stdbool.h>
 #include <stdint.h>
-/**********************************************************
-***	编写作者：Lin
-
-***	qq：1071378062
-**********************************************************/
 
 #define MOTOR_NUM 10 // 定义电机数量
 #define MOTOR_ID 1 // 定义电机起始 ID
@@ -115,16 +106,11 @@ void motor_single_control(uint8_t idx, uint8_t direction, float distance, float 
 void motor_sync_control(uint8_t count, uint8_t start_idx, float distance[]);
 void motor_sync_bypass(uint8_t count, uint8_t start_idx, float distance[]);
 void motor_run_bypass(int idx, float vel, float target, uint8_t snf);
-void motor_run_velocity_mode(uint8_t idx, float vel_rpm, uint16_t acc_rpm_s);
-
-typedef void (*Kinematic)(float R[], float theta[], float phi, float deltaL[]);
-void motor_kinematic_control(Kinematic kinematic, float R[], float theta[], float phi, float deltaL[]);
+// 连续速度模式驱动（画圆等连续旋转，无位置步进；vel 单位 mm/s，正负=方向）
+void motor_run_velocity(int idx, float vel, uint8_t snf);
 
 // 新增函数 - 添加于2026-03-27 by Psyduck
 void motor_status_check(void);
-
-float motor_angle_to_displacement(uint8_t motor_index, float angle);
-float motor_displacement_to_angle(uint8_t motor_index, float displacement);
 
 extern GlobalMotor global_motor[MOTOR_NUM];
 extern MotorFeedback motor_feedback[MOTOR_NUM];

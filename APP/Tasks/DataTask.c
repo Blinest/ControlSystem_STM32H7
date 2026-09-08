@@ -19,7 +19,6 @@
 #include "usart.h"
 #include "Motor/Motor.h"
 #include "Sensor/Sensor.h"
-#include "Common/sensor_cmd_parser.h"
 #include "Common/cmd_packer.h"
 #include "Common/can_driver.h"
 #include "CR/CR.h"
@@ -69,9 +68,9 @@ void StartDataHandleTask(void *argument)
         {
             WitSerialDataIn(rx_byte);
         }
-        global_sensor[0].x = sReg[Roll+0] / 32768.0f * 180.0f;
-        global_sensor[0].y = sReg[Roll+1] / 32768.0f * 180.0f;
-        global_sensor[0].z = sReg[Roll+2] / 32768.0f * 180.0f;
+        global_sensor[0].x = sReg[Roll+0] / 32768.0f * 180.0f * 1.2;
+        global_sensor[0].y = sReg[Roll+1] / 32768.0f * 180.0f * 1.2;
+        global_sensor[0].z = sReg[Roll+2] / 32768.0f * 180.0f * 1.2;
 
         // ====================================
         // 3. 数据发送: 打包并发送给上位机
@@ -82,7 +81,6 @@ void StartDataHandleTask(void *argument)
         {
             // 打包系统状态数据 (使用 static 以节省堆栈空间)
             static uint8_t packed_frame[256];
-            const float scale = CR.operation_space.scale;
             const uint8_t state = CR.state;
 
             const uint16_t frame_len = cmd_packer_pack_status_frame(packed_frame, global_motor, global_sensor, &CR, state);
@@ -99,7 +97,6 @@ void StartDataHandleTask(void *argument)
         static uint8_t tx_buffer[256];
         static uint16_t tx_buffer_len = 0;
 
-        // 提取并发送
         tx_buffer_len = 0;
         while (osMessageQueueGet(IMUDataParseQueueHandle, &tx_byte, NULL, 0) == osOK && tx_buffer_len < 256)
         {

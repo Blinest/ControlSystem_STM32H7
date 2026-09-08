@@ -54,9 +54,10 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         App/Tasks/DataTask.c
         APP/Tasks/PeriphCtrlTask.c
         App/Common/pc_cmd_parser.c
-        APP/Common/sensor_cmd_parser.c
         App/Common/cmd_packer.c
         App/CR/CR.c
+        APP/CR/Control.c
+        App/Control/ClosedLoop.c
         BSP/Motor/Motor.c
         BSP/Sensor/IMU.c
 )

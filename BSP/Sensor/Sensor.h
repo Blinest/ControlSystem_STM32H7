@@ -37,32 +37,9 @@ void sensor_init(void);
 void sensor_single_read(uint8_t sensor_id);
 
 /**
- * @brief 多传感器数据读取函数
- */
-void sensor_multi_read(void);
-
-/**
  * @brief 传感器自检函数
  */
 void sensor_self_test(uint8_t sensor_id);
-
-/**
- * @brief 获取传感器原始数据
- * @param sensor_id 传感器ID
- * @param x 指向X轴数据的指针
- * @param y 指向Y轴数据的指针
- * @param z 指向Z轴数据的指针
- */
-void sensor_get_raw_data(uint8_t sensor_id, int16_t* x, int16_t* y, int16_t* z);
-
-/**
- * @brief 获取传感器角度数据
- * @param sensor_id 传感器ID
- * @param pitch 指向俯仰角的指针
- * @param roll 指向横滚角的指针
- * @param yaw 指向偏航角的指针
- */
-void sensor_get_angle_data(uint8_t sensor_id, float* pitch, float* roll, float* yaw);
 /**
  * @brief 传感器校准
  * @param sensor_id 传感器ID

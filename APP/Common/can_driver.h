@@ -1,14 +1,8 @@
-//
-// Created by rosding on 2026/4/2.
-//
-
 #ifndef CONTROLSYSTEM_CAN_DRIVER_H
 #define CONTROLSYSTEM_CAN_DRIVER_H
 
 #include "main.h"
 #include "fdcan.h"
-#include "cmsis_os.h"
-
 
 // CAN消息结构
 typedef struct {
@@ -33,22 +27,13 @@ typedef struct {
 
 // 初始化函数
 void CAN_Driver_Init(void);
-void CAN_Driver_Start(void);
 
 // 发送函数
-void CAN_SendCmd(FDCAN_HandleTypeDef *hcan, uint8_t *cmd, uint8_t len);
-
-
-// 接收函数
-uint8_t CAN_Driver_Receive(CAN_Message_t* msg);
+void CAN_SendCmd(FDCAN_HandleTypeDef *hcan, volatile uint8_t *cmd, uint8_t len);
 
 // Bus Off 恢复函数（在任务主循环中调用）
 void CAN_BusOff_Recovery(void);
 
-
-
-
 // 队列句柄
-extern osMessageQueueId_t CAN_RxQueueHandle;
 extern FDCAN_TxHeaderTypeDef TxHeader;
 #endif //CONTROLSYSTEM_CAN_DRIVER_H

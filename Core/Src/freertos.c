@@ -173,7 +173,6 @@ __weak void StartDefaultTask(void *argument)
 
   /* Raw UART write to verify task entry, no HAL dependency */
   { volatile uint32_t *tdr = (volatile uint32_t *)0x40011028; volatile uint32_t *isr = (volatile uint32_t *)0x4001101C; while (!(*isr & 0x80)) {} *tdr = 'D'; for(volatile int __d=0;__d<100000;__d++){} }
-  Usart_SendString(&huart1, "DEF TASK\r\n", 10);
   HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_7);
 
   /* Infinite loop */

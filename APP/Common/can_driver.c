@@ -4,17 +4,13 @@
 #include "usart.h"
 #include "Motor/Motor.h"
 #include "XV2_cmd_parser.h"
-// CAN接收队列
-osMessageQueueId_t CAN_RxQueueHandle;
+// CAN发送头
 FDCAN_TxHeaderTypeDef TxHeader;
 /**
  * @brief CAN驱动初始化
  */
 void CAN_Driver_Init(void)
 {
-    // 创建CAN接收队列
-    CAN_RxQueueHandle = osMessageQueueNew(32, sizeof(CAN_Message_t), NULL);
-
     // 启动CAN
     HAL_FDCAN_Start(&hfdcan1);
 
@@ -49,20 +45,14 @@ void CAN_Driver_Init(void)
 								   FDCAN_IT_BUS_OFF, 0);
 }
 
-/**
-	* @brief   CAN发送多个字节
-	* @param   无
-	* @retval  无
-	*/
-
-void CAN_SendCmd(FDCAN_HandleTypeDef *hfdcan, uint8_t *cmd, uint8_t len)
+void CAN_SendCmd(FDCAN_HandleTypeDef *hfdcan, volatile uint8_t *cmd, uint8_t len)
 {
 	if (cmd == NULL || len < 2) return;
 
 	uint8_t addr = cmd[0];          // 设备地址
 	uint8_t func = cmd[1];          // 功能码
 	uint8_t data_len = len - 2;     // 实际数据长度（不含地址和功能码）
-	uint8_t *data = &cmd[2];        // 数据起始指针
+	volatile uint8_t *data = &cmd[2];        // 数据起始指针
 
 	FDCAN_TxHeaderTypeDef TxHeader = {0};  // 缺省清零，防止未初始化字段
 
@@ -114,11 +104,6 @@ void CAN_SendCmd(FDCAN_HandleTypeDef *hfdcan, uint8_t *cmd, uint8_t len)
 }
 
 
-/**
-	* @brief   FDCAN_RX0接收中断
-	* @param   无
-	* @retval  无
-	*/
 void HAL_FDCAN_RxFifo0Callback(FDCAN_HandleTypeDef *hfdcan, uint32_t RxFifo0ITs)
 {
     FDCAN_RxHeaderTypeDef RxHeader;
@@ -199,17 +184,3 @@ void CAN_BusOff_Recovery(void)
     HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_TX_COMPLETE, 0);
     HAL_FDCAN_ActivateNotification(&hfdcan1, FDCAN_IT_BUS_OFF, 0);
 }
-
-/**
- * @brief 从队列接收CAN消息
- */
-uint8_t CAN_Driver_Receive(CAN_Message_t* msg)
-{
-    if (osMessageQueueGet(CAN_RxQueueHandle, msg, NULL, 0) == osOK) {
-        return 1;
-    }
-    return 0;
-}
-
-
-

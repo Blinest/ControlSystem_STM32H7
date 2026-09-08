@@ -37,14 +37,15 @@ set(CMAKE_ASM_TARGET_INCLUDE_PATH
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
+  "D:/BaiduSyncdisk/2_work/1_2_management/1_2_2_test/ControlSystem_STM32H7/APP/CR/Control.c" "CMakeFiles/ControlSystem_STM32H7.dir/APP/CR/Control.c.obj" "gcc" "CMakeFiles/ControlSystem_STM32H7.dir/APP/CR/Control.c.obj.d"
   "D:/BaiduSyncdisk/2_work/1_2_management/1_2_2_test/ControlSystem_STM32H7/APP/Common/XV2_cmd_parser.c" "CMakeFiles/ControlSystem_STM32H7.dir/APP/Common/XV2_cmd_parser.c.obj" "gcc" "CMakeFiles/ControlSystem_STM32H7.dir/APP/Common/XV2_cmd_parser.c.obj.d"
-  "D:/BaiduSyncdisk/2_work/1_2_management/1_2_2_test/ControlSystem_STM32H7/APP/Common/sensor_cmd_parser.c" "CMakeFiles/ControlSystem_STM32H7.dir/APP/Common/sensor_cmd_parser.c.obj" "gcc" "CMakeFiles/ControlSystem_STM32H7.dir/APP/Common/sensor_cmd_parser.c.obj.d"
   "D:/BaiduSyncdisk/2_work/1_2_management/1_2_2_test/ControlSystem_STM32H7/APP/Tasks/PeriphCtrlTask.c" "CMakeFiles/ControlSystem_STM32H7.dir/APP/Tasks/PeriphCtrlTask.c.obj" "gcc" "CMakeFiles/ControlSystem_STM32H7.dir/APP/Tasks/PeriphCtrlTask.c.obj.d"
   "D:/BaiduSyncdisk/2_work/1_2_management/1_2_2_test/ControlSystem_STM32H7/App/CR/CR.c" "CMakeFiles/ControlSystem_STM32H7.dir/App/CR/CR.c.obj" "gcc" "CMakeFiles/ControlSystem_STM32H7.dir/App/CR/CR.c.obj.d"
   "D:/BaiduSyncdisk/2_work/1_2_management/1_2_2_test/ControlSystem_STM32H7/App/CR/kinematic.c" "CMakeFiles/ControlSystem_STM32H7.dir/App/CR/kinematic.c.obj" "gcc" "CMakeFiles/ControlSystem_STM32H7.dir/App/CR/kinematic.c.obj.d"
   "D:/BaiduSyncdisk/2_work/1_2_management/1_2_2_test/ControlSystem_STM32H7/App/Common/can_driver.c" "CMakeFiles/ControlSystem_STM32H7.dir/App/Common/can_driver.c.obj" "gcc" "CMakeFiles/ControlSystem_STM32H7.dir/App/Common/can_driver.c.obj.d"
   "D:/BaiduSyncdisk/2_work/1_2_management/1_2_2_test/ControlSystem_STM32H7/App/Common/cmd_packer.c" "CMakeFiles/ControlSystem_STM32H7.dir/App/Common/cmd_packer.c.obj" "gcc" "CMakeFiles/ControlSystem_STM32H7.dir/App/Common/cmd_packer.c.obj.d"
   "D:/BaiduSyncdisk/2_work/1_2_management/1_2_2_test/ControlSystem_STM32H7/App/Common/pc_cmd_parser.c" "CMakeFiles/ControlSystem_STM32H7.dir/App/Common/pc_cmd_parser.c.obj" "gcc" "CMakeFiles/ControlSystem_STM32H7.dir/App/Common/pc_cmd_parser.c.obj.d"
+  "D:/BaiduSyncdisk/2_work/1_2_management/1_2_2_test/ControlSystem_STM32H7/App/Control/ClosedLoop.c" "CMakeFiles/ControlSystem_STM32H7.dir/App/Control/ClosedLoop.c.obj" "gcc" "CMakeFiles/ControlSystem_STM32H7.dir/App/Control/ClosedLoop.c.obj.d"
   "D:/BaiduSyncdisk/2_work/1_2_management/1_2_2_test/ControlSystem_STM32H7/App/Tasks/DataTask.c" "CMakeFiles/ControlSystem_STM32H7.dir/App/Tasks/DataTask.c.obj" "gcc" "CMakeFiles/ControlSystem_STM32H7.dir/App/Tasks/DataTask.c.obj.d"
   "D:/BaiduSyncdisk/2_work/1_2_management/1_2_2_test/ControlSystem_STM32H7/BSP/Motor/Motor.c" "CMakeFiles/ControlSystem_STM32H7.dir/BSP/Motor/Motor.c.obj" "gcc" "CMakeFiles/ControlSystem_STM32H7.dir/BSP/Motor/Motor.c.obj.d"
   "D:/BaiduSyncdisk/2_work/1_2_management/1_2_2_test/ControlSystem_STM32H7/BSP/Motor/X_V2.c" "CMakeFiles/ControlSystem_STM32H7.dir/BSP/Motor/X_V2.c.obj" "gcc" "CMakeFiles/ControlSystem_STM32H7.dir/BSP/Motor/X_V2.c.obj.d"

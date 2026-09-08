@@ -62,21 +62,6 @@ extern "C" {
 	 */
 	uint16_t cmd_packer_pack_status_frame(uint8_t* frame, GlobalMotor motor_pos[MOTOR_NUM], GlobalSensor sensor_angle[SENSOR_NUM], const ContinuumRobot *lqts, uint8_t state);
 
-
-
-	/**
-	 * @brief 发送打包后的帧到队列
-	 * @param frame 打包后的数据帧
-	 * @param frame_len 帧长度
-	 */
-	void cmd_packer_send_frame_to_queue(uint8_t* frame, uint16_t frame_len);
-
-	/**
-	 * @brief 发送系统状态帧到上位机
-	 * 这是供其他模块调用的高级接口
-	 */
-	void cmd_packer_send_status_frame(void);
-
 #ifdef __cplusplus
 }
 #endif

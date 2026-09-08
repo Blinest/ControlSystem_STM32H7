@@ -14,6 +14,6 @@
 Build type: Debug
 -- The ASM compiler identification is GNU
 -- Found assembler: D:/7_code/DevEnv/DevEnv/GNU-tools-for-STM32/bin/arm-none-eabi-gcc.exe
--- Configuring done (45.3s)
+-- Configuring done (37.5s)
 -- Generating done (1.0s)
 -- Build files have been written to: D:/BaiduSyncdisk/2_work/1_2_management/1_2_2_test/ControlSystem_STM32H7/build/Debug

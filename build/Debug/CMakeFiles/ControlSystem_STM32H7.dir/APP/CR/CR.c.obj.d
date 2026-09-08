@@ -25,6 +25,7 @@ CMakeFiles/ControlSystem_STM32H7.dir/App/CR/CR.c.obj: \
  D:\7_code\DevEnv\DevEnv\GNU-tools-for-STM32\bin\../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/include/sys/_locale.h \
  D:\7_code\DevEnv\DevEnv\GNU-tools-for-STM32\bin\../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/include/strings.h \
  D:\7_code\DevEnv\DevEnv\GNU-tools-for-STM32\bin\../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/include/sys/string.h \
+ D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\App\CR\Control.h \
  D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\cmake\stm32cubemx\..\..\Core\Inc/usart.h \
  D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\cmake\stm32cubemx\..\..\Core\Inc/main.h \
  D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\cmake\stm32cubemx\..\..\Drivers\STM32H7xx_HAL_Driver\Inc/stm32h7xx_hal.h \
@@ -63,6 +64,8 @@ CMakeFiles/ControlSystem_STM32H7.dir/App/CR/CR.c.obj: \
  D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\cmake\stm32cubemx\..\..\Middlewares\Third_Party\FreeRTOS\Source\CMSIS_RTOS_V2/cmsis_os2.h \
  D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\App\CR\kinematic.h \
  D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\BSP/Motor/Motor.h \
+ D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\App/Control/ClosedLoop.h \
+ D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\App/CR/Control.h \
  D:\7_code\DevEnv\DevEnv\GNU-tools-for-STM32\bin\../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/include/stdio.h \
  D:\7_code\DevEnv\DevEnv\GNU-tools-for-STM32\bin\../lib/gcc/arm-none-eabi/13.3.1/include/stdarg.h \
  D:\7_code\DevEnv\DevEnv\GNU-tools-for-STM32\bin\../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/include/sys/stdio.h \

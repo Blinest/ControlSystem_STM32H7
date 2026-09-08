@@ -18,16 +18,11 @@
 extern "C" {
 #endif
 
-	/**
-	 * @brief 上位机指令解析函数 (PC -> STM32)
-	 * @param byte 接收到的单字节数据
-	 */
-	void pc_cmd_parser_feed_byte(uint8_t byte);
-
-	/**
-	 * @brief 重置上位机指令解析器
-	 */
-	void pc_cmd_parser_reset_all(void);
+/**
+ * @brief 上位机指令解析函数 (PC -> STM32)
+ * @param byte 接收到的单字节数据
+ */
+void pc_cmd_parser_feed_byte(uint8_t byte);
 
 #ifdef __cplusplus
 }

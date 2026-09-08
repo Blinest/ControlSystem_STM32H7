@@ -11,7 +11,7 @@
 
 __IO uint16_t MMCL_count = 0, MMCL_cmd[MMCL_LEN] = {0};
 
-void can_SendCmd(uint8_t *cmd, uint8_t len)
+void can_SendCmd(volatile uint8_t *cmd, uint8_t len)
 {
 	CAN_SendCmd(&hfdcan1, cmd, len);
 }

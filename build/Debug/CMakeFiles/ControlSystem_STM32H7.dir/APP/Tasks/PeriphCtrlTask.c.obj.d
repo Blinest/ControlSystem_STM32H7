@@ -61,20 +61,14 @@ CMakeFiles/ControlSystem_STM32H7.dir/APP/Tasks/PeriphCtrlTask.c.obj: \
  D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\App/Common/can_driver.h \
  D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\cmake\stm32cubemx\..\..\Core\Inc/fdcan.h \
  D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\cmake\stm32cubemx\..\..\Core\Inc/main.h \
- D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\cmake\stm32cubemx\..\..\Middlewares\Third_Party\FreeRTOS\Source\CMSIS_RTOS_V2/cmsis_os.h \
- D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\cmake\stm32cubemx\..\..\Middlewares\Third_Party\FreeRTOS\Source\include/FreeRTOS.h \
- D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\cmake\stm32cubemx\..\..\Core\Inc/FreeRTOSConfig.h \
- D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\cmake\stm32cubemx\..\..\Middlewares\Third_Party\FreeRTOS\Source\include/projdefs.h \
- D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\cmake\stm32cubemx\..\..\Middlewares\Third_Party\FreeRTOS\Source\include/portable.h \
- D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\cmake\stm32cubemx\..\..\Middlewares\Third_Party\FreeRTOS\Source\include/deprecated_definitions.h \
- D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\cmake\stm32cubemx\..\..\Middlewares\Third_Party\FreeRTOS\Source\portable\GCC\ARM_CM4F/portmacro.h \
- D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\cmake\stm32cubemx\..\..\Middlewares\Third_Party\FreeRTOS\Source\include/mpu_wrappers.h \
- D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\cmake\stm32cubemx\..\..\Middlewares\Third_Party\FreeRTOS\Source\include/task.h \
- D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\cmake\stm32cubemx\..\..\Middlewares\Third_Party\FreeRTOS\Source\include/list.h \
- D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\cmake\stm32cubemx\..\..\Middlewares\Third_Party\FreeRTOS\Source\CMSIS_RTOS_V2/cmsis_os2.h \
  D:\7_code\DevEnv\DevEnv\GNU-tools-for-STM32\bin\../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/include/stdio.h \
  D:\7_code\DevEnv\DevEnv\GNU-tools-for-STM32\bin\../lib/gcc/arm-none-eabi/13.3.1/include/stdarg.h \
  D:\7_code\DevEnv\DevEnv\GNU-tools-for-STM32\bin\../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/include/sys/stdio.h \
  D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\cmake\stm32cubemx\..\..\Core\Inc/usart.h \
  D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\App/Common/pc_cmd_parser.h \
- D:\7_code\DevEnv\DevEnv\GNU-tools-for-STM32\bin\../lib/gcc/arm-none-eabi/13.3.1/include/stdbool.h
+ D:\7_code\DevEnv\DevEnv\GNU-tools-for-STM32\bin\../lib/gcc/arm-none-eabi/13.3.1/include/stdbool.h \
+ D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\App/CR/CR.h \
+ D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\App/CR/Control.h \
+ D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\App/Control/ClosedLoop.h \
+ D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\App/CR/Control.h \
+ D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\BSP/Sensor/Sensor.h

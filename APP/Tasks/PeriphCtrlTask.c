@@ -16,17 +16,16 @@
 
 
 #include "Common/pc_cmd_parser.h"
-#define RX_BUF_SIZE 256
+#include "CR/CR.h"
+#include "Control/ClosedLoop.h"
+#include "Sensor/Sensor.h"
+#include <math.h>
 
 
 bool is_connected = false;   // false:未连接 true:已连接
 
 void StartPeriphCtrlTask(void *argument)
 {
-	uint8_t rx_buffer[RX_BUF_SIZE];
-	uint16_t rx_len = 0;
-    // 测试串口用
-    uint8_t test_msg[] = "send to usart1\r\n";
     uint8_t receive;
 
     // ==================== 指令解析任务 ====================
@@ -37,15 +36,14 @@ void StartPeriphCtrlTask(void *argument)
 
 	    // 从队列接收上位机指令
 	    if (osMessageQueueGet(CmdCtrlQueueHandle, &receive, NULL, 0) == osOK) {
-	        // 优先回显，提高响应性
-	        if (rx_len < RX_BUF_SIZE) {
-	            rx_buffer[rx_len++] = receive;
-	        	// 进入指令解析函数，指令解析函数负责指令解析，而后再将解析好的指令传给电机进行解析
-	        	pc_cmd_parser_feed_byte(receive);
-	        } else {
-                rx_len = 0; // 缓冲区溢出重置
-            }
+	        pc_cmd_parser_feed_byte(receive);
 	    }
+	    // 执行闭环控制器的非阻塞迭代（bang-bang 控制模型，独立模块）
+	    ClosedLoop_Tick();
+	    // 推进自动标定状态机（未标定时立即返回）
+	    calibrate_auto_tick();
+	    // 推进循环运动状态机（未启动时立即返回）
+	    action_group_tick();
 
 		osDelay(10); // 降低 CPU 占用
 	}

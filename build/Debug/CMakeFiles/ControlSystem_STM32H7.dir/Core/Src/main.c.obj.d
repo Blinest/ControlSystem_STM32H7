@@ -75,4 +75,5 @@ CMakeFiles/ControlSystem_STM32H7.dir/Core/Src/main.c.obj: \
  D:\7_code\DevEnv\DevEnv\GNU-tools-for-STM32\bin\../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/include/string.h \
  D:\7_code\DevEnv\DevEnv\GNU-tools-for-STM32\bin\../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/include/sys/_locale.h \
  D:\7_code\DevEnv\DevEnv\GNU-tools-for-STM32\bin\../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/include/strings.h \
- D:\7_code\DevEnv\DevEnv\GNU-tools-for-STM32\bin\../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/include/sys/string.h
+ D:\7_code\DevEnv\DevEnv\GNU-tools-for-STM32\bin\../lib/gcc/arm-none-eabi/13.3.1/../../../../arm-none-eabi/include/sys/string.h \
+ D:\BaiduSyncdisk\2_work\1_2_management\1_2_2_test\ControlSystem_STM32H7\App/CR/Control.h

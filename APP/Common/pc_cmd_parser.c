@@ -11,6 +11,7 @@
 #include "Motor/Motor.h"
 #include "Sensor/Sensor.h"
 #include "CR/kinematic.h"
+#include "Control/ClosedLoop.h"
 #include "usart.h"
 #include "cmsis_os2.h"
 #include "string.h"
@@ -64,6 +65,8 @@ static CmdParseState_t s_ctrlState = CMD_STATE_HEAD;
 /* 连接状态 */
 extern bool is_connected;
 
+/* 闭环控制模型已提取到 Control/ClosedLoop 模块，解析器通过 ClosedLoop_* API 操作 */
+
 /**
  * @brief 重置控制指令解析状态
  */
@@ -100,7 +103,7 @@ static void pc_cmd_parse_and_execute(void)
 					}
             		break;
 
-		        case FUNC_MOTOR_ENABLE: // 电机使能
+		        case FUNC_MOTOR_ENABLE:
             		for (int i = 0; i < MOTOR_NUM; i++)
             		{
             			motor_enable(global_motor[i].id, true);
@@ -108,7 +111,7 @@ static void pc_cmd_parse_and_execute(void)
             		}
             		break;
 
-		        case FUNC_MOTOR_STOP: // 电机停止
+		        case FUNC_MOTOR_STOP:
             		motor_stop_all();
             		break;
 
@@ -120,8 +123,6 @@ static void pc_cmd_parse_and_execute(void)
                         uint8_t direction = s_ctrlBuf[4]; // 方向 (1:负方向, 0:正方向)
                         uint16_t distance = (s_ctrlBuf[5] << 8) | s_ctrlBuf[6]; // 距离
                         uint16_t vel = (s_ctrlBuf[7] << 8) | s_ctrlBuf[8]; // 速度
-                    	uint16_t acc = (s_ctrlBuf[9] << 8) | s_ctrlBuf[10]; // 加速度
-						// 调用单电机控制函数
                         motor_single_control(addr - 1, direction, (float)distance / 100.0f, (float)vel / 100.0f);
                     }
                     break;
@@ -145,9 +146,17 @@ static void pc_cmd_parse_and_execute(void)
                     break;
 
                 case FUNC_MOTOR_KINEMATIC:
-                    // 动作组触发指令: [AA] [05] [校验和]，无额外数据
-                    // 所有动作参数在 action_group_demo 内部定义
-                    action_group_demo();
+                    // 循环运动控制指令: [AA][05][01][mode][cs]
+                    // mode: 0=启动循环动作组(默认角/默认次数), 1=停止循环并回零
+                    // step_deg>0 → 旋转序列模式（上弯→旋转一圈→回正→循环）
+                    if (data_len >= 1) {
+                        uint8_t mode = s_ctrlBuf[3];
+                        if (mode == 0) {
+                            action_group_start(10.0f, 0u, 0.1f);   // 旋转序列模式：上弯10°→每步5°旋转一圈→回正
+                        } else {
+                            action_group_stop();
+                        }
+                    }
                     break;
                 case FUNC_MOTOR_CUSTOM:
                     // 自定义多电机控制: 数量 + [地址, 方向, 距离]...
@@ -172,6 +181,41 @@ static void pc_cmd_parse_and_execute(void)
                                     uint16_t scale = (s_ctrlBuf[6] << 8) | s_ctrlBuf[7];
 									float val = (float)scale / 100.f;
                                 	scale_squared(direction, val);
+                                } else if (addr == 0xFC) {
+                                    // 闭环控制器: mode(0停止/1启动), direction, target
+                                    // 控制器选择(算法/轮换)在底层 ClosedLoop 模块配置，不暴露给上层
+                                    uint8_t mode = s_ctrlBuf[5];
+                                    if (mode == 0) {
+                                        ClosedLoop_Stop();
+                                    } else if (mode == 1) {
+                                        uint8_t direction = s_ctrlBuf[6];
+                                        uint16_t target = (s_ctrlBuf[7] << 8) | s_ctrlBuf[8];
+
+                                        char dir;
+                                        switch (direction) {
+                                            case 0: dir = 'u'; break;
+                                            case 1: dir = 'd'; break;
+                                            case 2: dir = 'l'; break;
+                                            case 3: dir = 'r'; break;
+                                            default: return;
+                                        }
+
+                                        ClosedLoop_Start(dir, (float)target / 100.0f,
+                                                         CLOSED_LOOP_DEFAULT_ALGO);
+                                    }
+                                } else if (addr == 0xFB) {
+                                    // 自动标定: direction(0=u,1=d,2=l,3=r)
+                                    // 依次下发 0/10/20/30/40/50° 原始命令，采 IMU 稳定值建表
+                                    uint8_t direction = s_ctrlBuf[5];
+                                    char dir;
+                                    switch (direction) {
+                                        case 0: dir = 'u'; break;
+                                        case 1: dir = 'd'; break;
+                                        case 2: dir = 'l'; break;
+                                        case 3: dir = 'r'; break;
+                                        default: return;
+                                    }
+                                    auto_calibrate(dir);
                                 }
                             }
                         }
@@ -217,16 +261,13 @@ void pc_cmd_parser_feed_byte(uint8_t byte)
         case CMD_STATE_HEAD:
             if (receive == FRAME_HEAD_MOTOR || receive == FRAME_HEAD_SENSOR)
             {
-                // 解析下一个字节，并将帧头存入发送数据缓冲区
                 s_ctrlBuf[0] = receive;
                 s_ctrlIdx = 1;
                 s_ctrlState = CMD_STATE_FUNC;
             }
             break;
 
-        /* 根据帧头进行不同的控制操作 */
         case CMD_STATE_FUNC:
-            /* 保存功能码 */
             s_ctrlBuf[1] = receive;
             s_ctrlLen = 2;
     		s_ctrlState = CMD_STATE_LEN;
@@ -273,11 +314,4 @@ void pc_cmd_parser_feed_byte(uint8_t byte)
             pc_cmd_parser_reset();
             break;
     }
-}
-
-/**
- * @brief 重置上位机指令解析器
- */
-void pc_cmd_parser_reset_all(void) {
-    pc_cmd_parser_reset();
 }

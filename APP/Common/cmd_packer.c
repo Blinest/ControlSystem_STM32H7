@@ -9,10 +9,6 @@
  */
 
 #include "cmd_packer.h"
-#include "cmsis_os2.h"
-
-// 引用外部队列
-extern osMessageQueueId_t SensorMessageQueueHandle;
 
 /**
  * @brief 打包系统状态帧 (test_frame 格式)
@@ -24,19 +20,17 @@ extern osMessageQueueId_t SensorMessageQueueHandle;
  * @return 打包后的总长度
  */
 uint16_t cmd_packer_pack_status_frame(uint8_t* frame, GlobalMotor motor[MOTOR_NUM], GlobalSensor sensor[SENSOR_NUM], const ContinuumRobot *lqts, uint8_t state) {
-    // 打包帧格式：帧头 + 功能码 + 数据长度 + 电机数量 + 传感器数量
 	uint16_t idx = 0;
-    frame[idx++] = 0xBB; // 帧头
-    frame[idx++] = 0x02; // 功能码 (多传感器批量读取)
+    frame[idx++] = 0xAA; // 帧头，用于设备标识
+    frame[idx++] = 0x02; // 设备标识
 
-	// 预留数据长度字节的位置，稍后计算
+	// 预留数据长度字节，稍后回填
 	uint16_t data_length_pos = idx;
-	idx += 1; // 为数据长度预留位置
+	idx += 1;
 
     frame[idx++] = MOTOR_NUM;
     frame[idx++] = SENSOR_NUM;
 
-    // 电机数据
     for (int i = 0; i < MOTOR_NUM; i++) {
         int16_t pos = (int16_t)(motor[i].stepper_motor.current_pos * 100); // mm
         int16_t vel = (int16_t)(motor[i].stepper_motor.current_vel * 100); // mm/s
@@ -46,17 +40,15 @@ uint16_t cmd_packer_pack_status_frame(uint8_t* frame, GlobalMotor motor[MOTOR_NU
     	// int16_t vel = (int16_t)(motor[i].stepper_motor.target_vel * 100); // mm/s
     	// int16_t acc = (int16_t)(motor[i].stepper_motor.current_acc * 100); // mm/s^2
     	int8_t motor_state = (int8_t)(motor[i].state);
-    	// 填入数据包
         frame[idx++] = (pos >> 8) & 0xFF; frame[idx++] = pos & 0xFF;
         frame[idx++] = (vel >> 8) & 0xFF; frame[idx++] = vel & 0xFF;
         frame[idx++] = (acc >> 8) & 0xFF; frame[idx++] = acc & 0xFF;
     	frame[idx++] = motor_state & 0xFF;
     }
-    // 传感器数据
     for (int i = 0; i < SENSOR_NUM; i++) {
-        int16_t x = (int16_t)(sensor[i].x * 100);
-        int16_t y = (int16_t)(sensor[i].y * 100);
-        int16_t z = (int16_t)(sensor[i].z * 100);
+        int16_t x = (int16_t)(sensor[i].x * 100) ;
+        int16_t y = 0;
+        int16_t z = 0;
         frame[idx++] = (x >> 8) & 0xFF; frame[idx++] = x & 0xFF;
         frame[idx++] = (y >> 8) & 0xFF; frame[idx++] = y & 0xFF;
         frame[idx++] = (z >> 8) & 0xFF; frame[idx++] = z & 0xFF;
@@ -67,10 +59,8 @@ uint16_t cmd_packer_pack_status_frame(uint8_t* frame, GlobalMotor motor[MOTOR_NU
 	// armbend
 	int16_t s_val2 = (int16_t)(lqts->joint_space.total_model_theta * 100);
 	frame[idx++] = s_val2 >> 8; frame[idx++] = s_val2 & 0xFF;
-    frame[idx++] = state; // 使用传入的 state
+    frame[idx++] = state;
 
-	// 计算数据长度（从电机数量字节开始到state字节的所有字节）
-	// 数据长度 = 当前idx - 3 （因为0:帧头,1:功能码,2:数据长度）
 	frame[data_length_pos] = (uint8_t)(idx-3);
 
     // 校验和
@@ -81,27 +71,4 @@ uint16_t cmd_packer_pack_status_frame(uint8_t* frame, GlobalMotor motor[MOTOR_NU
     frame[idx++] = checksum & 0xFF;
 
     return idx;
-}
-
-/**
- * @brief 发送打包后的帧到队列
- * @param frame 打包后的数据帧
- * @param frame_len 帧长度
- */
-void cmd_packer_send_frame_to_queue(uint8_t* frame, uint16_t frame_len) {
-    for (int i = 0; i < frame_len; i++) {
-        uint8_t msg = frame[i];
-        osMessageQueuePut(SensorMessageQueueHandle, &msg, 0, 0);
-    }
-}
-
-/**
- * @brief 发送系统状态帧到上位机
- * 这是供其他模块调用的高级接口
- */
-void cmd_packer_send_status_frame(void) {
-    uint8_t packed_frame[128];
-	uint8_t state = CR.state;
-    uint16_t frame_len = cmd_packer_pack_status_frame(packed_frame, global_motor, global_sensor, &CR, state);
-    cmd_packer_send_frame_to_queue(packed_frame, frame_len);
 }

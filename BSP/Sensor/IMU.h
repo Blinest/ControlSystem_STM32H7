@@ -1,6 +1,3 @@
-//
-// Created by blin on 2026/3/7.
-//
 #include "stdint.h"
 
 #ifndef CONTROLSYSTEM_IMU_H
@@ -14,6 +11,5 @@
 
 void IMU_Init(void);
 void IMU_single_read(uint8_t sensor_id);
-static void SensorUartSend(uint8_t *p_data, uint32_t uiSize);
 void IMU_Cal(uint8_t sensor_id);
 #endif //CONTROLSYSTEM_IMU_H
